@@ -52,23 +52,7 @@ df["acc_x_filt"] = lowpass_filter(df["acc_x"], cutoff, fs)
 df["acc_y_filt"] = lowpass_filter(df["acc_y"], cutoff, fs)
 
 # -------------------
-# Plot: Beschleunigung roh vs. gefiltert
-# -------------------
-plt.figure(figsize=(10, 5))
-plt.plot(df['time_rel'], df['acc_x'], label='Acc X (raw)', alpha=0.5)
-plt.plot(df['time_rel'], df['acc_x_filt'], label='Acc X (filtered)', linewidth=2)
-plt.plot(df['time_rel'], df['acc_y'], label='Acc Y (raw)', alpha=0.5)
-plt.plot(df['time_rel'], df['acc_y_filt'], label='Acc Y (filtered)', linewidth=2)
-plt.xlabel('Time [s]')
-plt.ylabel('Acceleration [m/s²]')
-plt.title('IMU Linear Acceleration (with Lowpass Filter)')
-plt.grid()
-plt.legend()
-plt.tight_layout()
-plt.show()
-
-# -------------------
-# Winkelbeschleunigung berechnen (Ableitung Winkelgeschwindigkeit)
+# Winkelbeschleunigung berechnen
 # -------------------
 a = df['yaw'].values
 t = df['time_rel'].values
@@ -79,21 +63,7 @@ yaw_acc_cut = 1.0   # Hz
 df['yaw_acc_filt'] = lowpass_filter(df['yaw_acc'].values, yaw_acc_cut, fs, order=2)
 
 # -------------------
-# Winkelgeschwindigkeit und -beschleunigung plotten (unverändert)
-# -------------------
-plt.figure(figsize=(10, 5))
-plt.plot(df['time_rel'], df['yaw'], label='Yaw-Rate')
-plt.plot(df['time_rel'], df['yaw_acc_filt'], label='Yaw-Acceleration (filtered)')
-plt.xlabel('Time [s]')
-plt.ylabel('Angular Velocity [rad/s]')
-plt.title('IMU Angular Velocity')
-plt.grid()
-plt.legend()
-plt.tight_layout()
-plt.show()
-
-# -------------------
-# Jerk berechnen aus den gefilterten Daten
+# Jerk berechnen
 # -------------------
 for axis in ['x', 'y']:
     a = df[f'acc_{axis}_filt'].values
@@ -105,14 +75,37 @@ jerk_cut = 1.0  # Hz
 df["jerk.x"] = lowpass_filter(df["jerk.x_raw"].values, jerk_cut, fs, order=2)
 df["jerk.y"] = lowpass_filter(df["jerk.y_raw"].values, jerk_cut, fs, order=2)
 
-# Jerk plotten
-plt.figure(figsize=(10, 6))
-plt.plot(df['time_rel'], df['jerk.x'], label='Jerk X (filtered)')
-plt.plot(df['time_rel'], df['jerk.y'], label='Jerk Y (filtered)')
-plt.xlabel('Time [s]')
-plt.ylabel('Jerk [m/s³]')
-plt.title('Jerk (from filtered Acceleration)')
-plt.legend()
-plt.grid(True)
+# -------------------
+# Alle Plots in EINEM Fenster
+# -------------------
+fig, axes = plt.subplots(3, 1, figsize=(12, 12), sharex=True)
+
+# 1) Beschleunigung
+axes[0].plot(df['time_rel'], df['acc_x'], label='Acc X (raw)', alpha=0.5)
+axes[0].plot(df['time_rel'], df['acc_x_filt'], label='Acc X (filtered)', linewidth=2)
+axes[0].plot(df['time_rel'], df['acc_y'], label='Acc Y (raw)', alpha=0.5)
+axes[0].plot(df['time_rel'], df['acc_y_filt'], label='Acc Y (filtered)', linewidth=2)
+axes[0].set_ylabel('Acceleration [m/s²]')
+axes[0].set_title('IMU Linear Acceleration')
+axes[0].grid()
+axes[0].legend()
+
+# 2) Yaw und Yaw-Beschleunigung
+axes[1].plot(df['time_rel'], df['yaw'], label='Yaw-Rate')
+axes[1].plot(df['time_rel'], df['yaw_acc_filt'], label='Yaw-Acceleration (filtered)')
+axes[1].set_ylabel('Angular Velocity [rad/s]')
+axes[1].set_title('IMU Angular Velocity')
+axes[1].grid()
+axes[1].legend()
+
+# 3) Jerk
+axes[2].plot(df['time_rel'], df['jerk.x'], label='Jerk X (filtered)')
+axes[2].plot(df['time_rel'], df['jerk.y'], label='Jerk Y (filtered)')
+axes[2].set_xlabel('Time [s]')
+axes[2].set_ylabel('Jerk [m/s³]')
+axes[2].set_title('Jerk (from filtered Acceleration)')
+axes[2].grid()
+axes[2].legend()
+
 plt.tight_layout()
 plt.show()
