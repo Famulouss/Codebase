@@ -20,14 +20,25 @@ def lowpass_filter(data, cutoff, fs, order=2):
     return y
 
 # -------------------
-# Sichere Gradienten Berechnung (keinen 0 Teiler)
+# Eigene Gradienten Berechnung (keinen 0 Teiler)
 # -------------------
-def safe_gradient(values, times):
+def numerical_derivative(values, times):
+    times = np.asarray(times)
+    values = np.asarray(values)
+
     dt = np.diff(times)
-    # alle dt == 0 durch sehr kleine Zahl ersetzen
-    dt[dt == 0] = 1e-9
-    grad = np.gradient(values, times)
-    return np.nan_to_num(grad, nan=0.0, posinf=0.0, neginf=0.0)
+    dv = np.diff(values)
+
+    # Division durch 0 vermeiden
+    dt[dt == 0] = np.nan
+
+    derivative = dv / dt
+
+    # Länge anpassen: vorne 0 oder NaN einsetzen
+    derivative = np.insert(derivative, 0, 0.0)
+
+    # NaN und Inf ersetzen
+    return np.nan_to_num(derivative, nan=0.0, posinf=0.0, neginf=0.0)
 
 
 # -------------------
@@ -73,7 +84,7 @@ df["acc_y_filt"] = lowpass_filter(df["acc_y"], cutoff, fs)
 # -------------------
 a = df['yaw'].values
 t = df['time_rel'].values
-yaw_acc = safe_gradient(a, t)
+yaw_acc = numerical_derivative(a, t)
 df['yaw_acc'] = yaw_acc
 
 yaw_acc_cut = 1.0   # Hz
@@ -85,7 +96,7 @@ df['yaw_acc_filt'] = lowpass_filter(df['yaw_acc'].values, yaw_acc_cut, fs, order
 for axis in ['x', 'y']:
     a = df[f'acc_{axis}_filt'].values
     t = df['time_rel'].values
-    jerk = safe_gradient(a, t)
+    jerk = numerical_derivative(a, t)
     df[f'jerk.{axis}_raw'] = jerk
 
 jerk_cut = 1.0  # Hz
