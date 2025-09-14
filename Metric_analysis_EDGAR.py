@@ -56,7 +56,7 @@ df = pd.read_csv(filename)
 
 # relative Zeit (s)
 t0 = df["timestamp"].iloc[0]
-df["time_rel"] = (df["timestamp"] - t0) / 1000.0
+df["time_rel"] = (df["timestamp"] - t0)
 
 # Spalten bereinigen & umbenennen
 #df = df.drop(columns=["lsm6dso_accelerometer.z","lsm6dso_gyroscope.x", "lsm6dso_gyroscope.y"])
