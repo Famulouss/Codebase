@@ -1,28 +1,29 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.signal import butter, filtfilt
+import scipy.signal as signal
+from scipy.signal import butter, filtfilt, lfilter, freqz
 from tkinter import Tk
 from tkinter.filedialog import askopenfilename
 
 # -------------------
-# Butterworth Tiefpass-Filter
+# Hilfsfunktionen
 # -------------------
 def butter_lowpass(cutoff, fs, order=2):
+    """Butterworth Tiefpass-Filter"""
     nyq = 0.5 * fs
     normal_cutoff = cutoff / nyq
     b, a = butter(order, normal_cutoff, btype='low', analog=False)
     return b, a
 
 def lowpass_filter(data, cutoff, fs, order=2):
+    """Tiefpass-Filter für Butterworth-Filter"""
     b, a = butter_lowpass(cutoff, fs, order=order)
     y = filtfilt(b, a, data)
     return y
 
-# -------------------
-# Eigene Gradienten Berechnung (keinen 0 Teiler)
-# -------------------
 def numerical_derivative(values, times):
+    """Eigene Gradienten Berechnung (keinen 0 Teiler) TODO: Braucht es das noch? (Nachdem das Problem mit den Zeitstempeln gelöst wurde)"""
     times = np.asarray(times)
     values = np.asarray(values)
 
@@ -40,6 +41,65 @@ def numerical_derivative(values, times):
     # NaN und Inf ersetzen
     return np.nan_to_num(derivative, nan=0.0, posinf=0.0, neginf=0.0)
 
+def integral_abs(times, signal):
+    """Integral der absoluten Beschleunigung: ∫ |a(t)| dt (Trapezregel)."""
+    return np.trapezoid(np.abs(signal), times)
+
+def highpass_norm(omega1):
+    """
+    Aufteilung in Numerator und Denominator des Hochpassfilters aus der Norm 2631: 
+    Hh(p) = 1/(1+sqrt(2)*omega1/p+(omega1/p)^2)
+    """
+    num = [1, 0, 0] # Numerator (Zählerkoeffizienten N(s))
+    den = [1, np.sqrt(2)*omega1, omega1**2] # Denominator (Nennerkoeffizienten (D(s))
+    return num, den
+
+def lowpass_norm(omega2):
+    """
+    Aufteilung in Numerator und Denominator des Tiefpassfilters aus der Norm 2631:
+    Hl(p) = 1/(1+sqrt(2)*p/omega2+(p/omega2)^2)
+    """
+    num = [1]
+    den = [1/(omega2**2), np.sqrt(2)/omega2, 1]
+    return num, den
+
+def acc_vel_transition_filter(omega3, omega4, Q4):
+    """
+    Aufteilung in Numerator und Denominator des "acceleration-velocity transition"-Filters aus der Norm 2631:
+    Hl(p) = (1+p/omega3)/(1+p/(Q4*omega4)+(p/omega4)^2)
+    """
+    num = [1/omega3, 1]
+    den = [1/(omega4**2), 1/(Q4*omega4), 1]
+    return num, den
+
+def design_wd_filter(fs):
+    """
+    Entwirft digitale Filterkoeffizienten für Wd-Gewichtung gemäß ISO 2631 (Annäherung).
+    fs: Abtastrate in Hz
+    returns: b, a (arrays)
+    """
+    T = 1.0 / fs
+    omega1 = 2 * np.pi * 0.4    # f1 = 0,4 Hz
+    omega2 = 2 * np.pi * 100.0  # f2 = 100 Hz
+    omega3 = 2 * np.pi * 2.0    # f3 = 2 Hz
+    omega4 = 2 * np.pi * 2.0    # f4 = 2 Hz
+    q4 = 0.63
+
+    # Konstruktion der Teilfilter (analog)
+    num_h, den_h = highpass_norm(omega1)    # Hochpassfilter
+    num_l, den_l = lowpass_filter(omega2)   # Tiefpassfilter
+    num_t, den_t = acc_vel_transition_filter(omega3, omega4, q4)    # Acceleration-velocity transition Filter
+    
+    # Gesamtnumerator/-denominator durch Polynom-Multiplikation (Faltung der Koeffizienten)
+    num_temp = np.convolve(num_h, num_l)
+    num_total = np.convolve(num_temp, num_t)
+    den_temp = np.convolve(den_h, den_l)
+    den_total = np.convolve(den_temp, den_t)
+
+    # Diskretisierung/Umwandlung in digitales Filter (bilineare Transformation)
+    b, a = signal.bilinear(num_total, den_total, fs)
+    
+    return b, a
 
 # -------------------
 # CSV laden
@@ -51,8 +111,6 @@ filename = askopenfilename(
 )
 
 df = pd.read_csv(filename)
-
-
 
 # relative Zeit (s)
 t0 = df["timestamp"].iloc[0]
@@ -139,4 +197,10 @@ axes[2].legend()
 plt.tight_layout()
 plt.show()
 
+# Integral/Aufsummierung der Beschleunigungskurve/-werte (Absolutwerte)
+sum_x = integral_abs(df['time_rel'], df['acc_x'])
+sum_y = integral_abs(df['time_rel'], df['acc_y'])
+print(f"Integral x-Beschleunigung: {sum_x}\nIntegral y-Beschleunigung: {sum_y}")
 
+
+# ISO 2631 Metrik (RMS der frequenzgewichteten Beschleunigung)
