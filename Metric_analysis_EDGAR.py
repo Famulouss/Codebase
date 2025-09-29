@@ -128,6 +128,42 @@ def design_we_filter(fs):
 
     return b, a
 
+def sliding_metrics(signal, times, window_s=1.0, overlap=0.5):
+    """
+    Berechnet die gleitenden RMS-Intervalle übers Signal hinweg.
+    """
+    times = np.asarray(times)
+    signal = np.asarray(signal)
+    
+    step = window_s * (1.0-overlap)
+    if step <= 0:
+        raise ValueError("Overlap ist zu groß (<1)")
+    # Ermittle die Fenstermittelpunkte
+    t_start = times[0]
+    t_end = times[-1]
+    centers = np.arange(t_start + window_s/2.0, t_end - window_s/2.0 + 1e-9, step)  # Von 1. Argument werden im Abstand vom 3. Argument die Werte ermittelt bis zum ausschließlich 2. Argument
+
+    rms_list = []
+
+    # Ermittle den RMS Wert für jedes Intervall
+    for tc in centers:
+        t0 = tc - window_s/2.0
+        t1 = tc + window_s/2.0
+        mask = (times >= t0) & (times <= t1)
+        seg_t = times[mask]
+        seg = signal[mask]
+
+        # Integral für den frequenzgewichteten RMS (∫(aw^2)dt)
+        integral = np.trapezoid(seg**2, seg_t)
+        # weighted r.m.s (sqrt(1/T*I))
+        rms = np.sqrt(integral/window_s)
+        rms_list.append(rms)
+    
+    return rms_list
+
+
+
+
 # -------------------
 # CSV laden
 # -------------------
@@ -239,17 +275,16 @@ b, a = design_we_filter(fs)
 df['yaw_acc_normfilt'] = filtfilt(b, a, df['yaw_acc'])
 df['yaw_acc_normfilt'] *= 0.2   # k-Faktor nach Norm [m/rad]
 
-# Integral für den frequenzgewichteten RMS (∫(aw^2)dt)
-I_x = np.trapezoid(df['acc_x_normfilt']**2, df['time_rel'])  
-I_y = np.trapezoid(df['acc_y_normfilt']**2, df['time_rel'])
-I_yaw = np.trapezoid(df['yaw_acc_normfilt']**2, df['time_rel'])
-# weighted r.m.s (sqrt(1/T*I))
-awx = np.sqrt(1/df['time_rel'].iloc[-1]*I_x)   
-awy = np.sqrt(1/df['time_rel'].iloc[-1]*I_y)
-awyaw = np.sqrt(1/df['time_rel'].iloc[-1]*I_yaw)
-print(f"Weighted RMS x-acceleration: {awx} m/s²")
-print(f"Weighted RMS y-acceleration: {awy} m/s²")
-print(f"Weighted RMS yaw-acceleration: {awyaw} rad/s²2")
+# Berechne die rms Werte in unterschiedlich großen gleitenden Intervallen
+intervalls = [1.0, 3.0, 5.0, df['time_rel'].iloc[-1]]
+# Pro Beschleunigungsrichtung gibt es ein dict welches als Schlüssel die jeweiligen Intervalle hat {1.0: [0.674, 0.121, ...], 3.0: [...], ...}
+acc_x_rms_dict = {}
+acc_y_rms_dict = {}
+yaw_acc_dict = {}
+for i in intervalls:
+    acc_x_rms_dict[i] = sliding_metrics(df['acc_x_normfilt'], df['time_rel'], i)
+    acc_y_rms_dict[i] = sliding_metrics(df['acc_y_normfilt'], df['time_rel'], i)
+    yaw_acc_dict[i] = sliding_metrics(df['yaw_acc_normfilt'], df['time_rel'], i)
 
 # Gefilterte Beschleunigungsgrafiken
 fig, axes = plt.subplots(3, 1, figsize=(12, 12), sharex=True)
