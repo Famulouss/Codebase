@@ -297,7 +297,13 @@ MTVV_x = np.max(acc_x_rms_dict[1.0])
 MTVV_y = np.max(acc_y_rms_dict[1.0])
 MTVV_yaw = np.max(yaw_acc_rms_dict[1.0])
 
-# VDV
+# VDV (∫(aw^4)dt)^(1/4)
+integral = np.trapezoid(df['acc_x_normfilt']**4, df['time_rel'])
+vdv_x = integral**(1/4)
+integral = np.trapezoid(df['acc_y_normfilt']**4, df['time_rel'])
+vdv_y = integral**(1/4)
+integral = np.trapezoid(df['yaw_acc_normfilt']**4, df['time_rel'])
+vdv_yaw = integral**(1/4)
 
 # Berechnen ob laut Norm die Alternativen rms Methoden besser sind
 ratio_mtvv = MTVV_x/acc_x_rms_dict[t_total]
@@ -306,6 +312,12 @@ ratio_mtvv = MTVV_y/acc_y_rms_dict[t_total]
 print(f"MTVV-Verhältnis für y-Beschleunigung: {ratio_mtvv}. (Schwellwert: 1,5)")
 ratio_mtvv = MTVV_yaw/yaw_acc_rms_dict[t_total]
 print(f"MTVV-Verhältnis für yaw-Beschleunigung: {ratio_mtvv}. (Schwellwert: 1,5)")
+ratio_vdv = vdv_x/(acc_x_rms_dict[t_total]*(t_total**(1/4)))
+print(f"VDV-Verhältnis für x-Beschleunigung: {ratio_vdv}. (Schwellwert: 1,75)")
+ratio_vdv = vdv_y/(acc_y_rms_dict[t_total]*(t_total**(1/4)))
+print(f"VDV-Verhältnis für y-Beschleunigung: {ratio_vdv}. (Schwellwert: 1,75)")
+ratio_vdv = vdv_yaw/(yaw_acc_rms_dict[t_total]*(t_total**(1/4)))
+print(f"VDV-Verhältnis für yaw-Beschleunigung: {ratio_vdv}. (Schwellwert: 1,75)")
 
 
 # Gefilterte Beschleunigungsgrafiken
