@@ -131,6 +131,7 @@ def design_we_filter(fs):
 def sliding_metrics(signal, times, window_s=1.0, overlap=0.5):
     """
     Berechnet die gleitenden RMS-Intervalle übers Signal hinweg.
+    Return: rms_list, rms_times
     """
     times = np.asarray(times)
     signal = np.asarray(signal)
@@ -143,7 +144,7 @@ def sliding_metrics(signal, times, window_s=1.0, overlap=0.5):
     t_end = times[-1]
     centers = np.arange(t_start + window_s/2.0, t_end - window_s/2.0 + 1e-9, step)  # Von 1. Argument werden im Abstand vom 3. Argument die Werte ermittelt bis zum ausschließlich 2. Argument
 
-    rms_list = []
+    rms_list, rms_times = [], []
 
     # Ermittle den RMS Wert für jedes Intervall
     for tc in centers:
@@ -159,10 +160,7 @@ def sliding_metrics(signal, times, window_s=1.0, overlap=0.5):
         rms = np.sqrt(integral/window_s)
         rms_list.append(rms)
     
-    return rms_list
-
-
-
+    return rms_list, centers
 
 # -------------------
 # CSV laden
@@ -276,35 +274,67 @@ df['yaw_acc_normfilt'] = filtfilt(b, a, df['yaw_acc'])
 df['yaw_acc_normfilt'] *= 0.2   # k-Faktor nach Norm [m/rad]
 
 # Berechne die rms Werte in unterschiedlich großen gleitenden Intervallen
-intervalls = [1.0, 3.0, 5.0, df['time_rel'].iloc[-1]]
+t_total = df['time_rel'].iloc[-1]
+intervals = [1.0, 3.0, 5.0, t_total]
 # Pro Beschleunigungsrichtung gibt es ein dict welches als Schlüssel die jeweiligen Intervalle hat {1.0: [0.674, 0.121, ...], 3.0: [...], ...}
-acc_x_rms_dict = {}
-acc_y_rms_dict = {}
-yaw_acc_dict = {}
-for i in intervalls:
-    acc_x_rms_dict[i] = sliding_metrics(df['acc_x_normfilt'], df['time_rel'], i)
-    acc_y_rms_dict[i] = sliding_metrics(df['acc_y_normfilt'], df['time_rel'], i)
-    yaw_acc_dict[i] = sliding_metrics(df['yaw_acc_normfilt'], df['time_rel'], i)
+acc_x_rms_dict, x_interval_centers = {}, {}
+acc_y_rms_dict, y_interval_centers = {}, {}
+yaw_acc_rms_dict, yaw_interval_centers = {}, {}
+for i in intervals:
+    temp1, temp2 = sliding_metrics(df['acc_x_normfilt'], df['time_rel'], i)
+    acc_x_rms_dict[i] = temp1
+    x_interval_centers[i] = temp2
+    temp1, temp2 = sliding_metrics(df['acc_y_normfilt'], df['time_rel'], i)
+    acc_y_rms_dict[i] = temp1
+    y_interval_centers[i] = temp2
+    temp1, temp2 = sliding_metrics(df['yaw_acc_normfilt'], df['time_rel'], i)
+    yaw_acc_rms_dict[i] = temp1
+    yaw_interval_centers[i] = temp2
+
+# Alternative rms Berechnungen laut Norm 2631
+# MTVV (max transient vibration value) aus sliding rms (Tau=1s)
+MTVV_x = np.max(acc_x_rms_dict[1.0])
+MTVV_y = np.max(acc_y_rms_dict[1.0])
+MTVV_yaw = np.max(yaw_acc_rms_dict[1.0])
+
+# VDV
+
+# Berechnen ob laut Norm die Alternativen rms Methoden besser sind
+ratio_mtvv = MTVV_x/acc_x_rms_dict[t_total]
+print(f"MTVV-Verhältnis für x-Beschleunigung: {ratio_mtvv}. (Schwellwert: 1,5)")
+ratio_mtvv = MTVV_y/acc_y_rms_dict[t_total]
+print(f"MTVV-Verhältnis für y-Beschleunigung: {ratio_mtvv}. (Schwellwert: 1,5)")
+ratio_mtvv = MTVV_yaw/yaw_acc_rms_dict[t_total]
+print(f"MTVV-Verhältnis für yaw-Beschleunigung: {ratio_mtvv}. (Schwellwert: 1,5)")
+
 
 # Gefilterte Beschleunigungsgrafiken
+
 fig, axes = plt.subplots(3, 1, figsize=(12, 12), sharex=True)
 
-axes[0].plot(df['time_rel'], df['acc_x'], label='Raw')
-axes[0].plot(df['time_rel'], df['acc_x_normfilt'], label='Filtered', linewidth=2)
+axes[0].plot(df['time_rel'], df['acc_x'], label='Raw', alpha=0.7)
+axes[0].plot(df['time_rel'], df['acc_x_normfilt'], label='Filtered', alpha = 0.7)
+for i in intervals:
+    axes[0].step(x_interval_centers[i], acc_x_rms_dict[i], where="mid", label=f"Sliding RMS (line) {i}s Intervall", linewidth=2)
+axes[0].plot()
 axes[0].set_ylabel('Acceleration [m/s²]')
 axes[0].set_title('Norm-filtered x-acceleration')
 axes[0].grid()
 axes[0].legend()
 
-axes[1].plot(df['time_rel'], df['acc_y'], label='Raw')
-axes[1].plot(df['time_rel'], df['acc_y_normfilt'], label='Filtered', linewidth=2)
+axes[1].plot(df['time_rel'], df['acc_y'], label='Raw', alpha=0.7)
+axes[1].plot(df['time_rel'], df['acc_y_normfilt'], label='Filtered', alpha = 0.7)
+for i in intervals:
+    axes[1].step(y_interval_centers[i], acc_y_rms_dict[i], where="mid", label=f"Sliding RMS (line) {i}s Intervall", linewidth=2)
 axes[1].set_ylabel('Acceleration [m/s²]')
 axes[1].set_title('Norm-filtered y-acceleration')
 axes[1].grid()
 axes[1].legend()
 
-axes[2].plot(df['time_rel'], df['yaw_acc'], label='Raw')
-axes[2].plot(df['time_rel'], df['yaw_acc_normfilt'], label='Filtered', linewidth=2)
+axes[2].plot(df['time_rel'], df['yaw_acc'], label='Raw', alpha=0.7)
+axes[2].plot(df['time_rel'], df['yaw_acc_normfilt'], label='Filtered', alpha = 0.7)
+for i in intervals:
+    axes[2].step(yaw_interval_centers[i], yaw_acc_rms_dict[i], where="mid", label=f"Sliding RMS (line) 2achse{i}s Intervall", linewidth=2)
 axes[2].set_ylabel('Acceleration [rad/s²]')
 axes[2].set_xlabel('Time [s]')
 axes[2].set_title('Norm-filtered yaw-acceleration')
