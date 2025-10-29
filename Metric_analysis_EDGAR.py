@@ -10,6 +10,9 @@ from tkinter.filedialog import askopenfilename
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill
 from openpyxl.utils.dataframe import dataframe_to_rows
+import openpyxl
+from openpyxl.utils import get_column_letter
+from openpyxl.styles import Alignment
 
 # -------------------
 # Globale Variablen
@@ -510,9 +513,161 @@ axes[2].legend()
 plt.tight_layout()
 plt.show()
 
-import openpyxl
-from openpyxl.utils import get_column_letter
-from openpyxl.styles import Alignment
+
+# Analyseplots machen
+
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# ---------------------------
+# 🔧 Einstellungen
+# ---------------------------
+plt.rcParams.update({'font.size': 10})
+output_dir = "Ergebnisse"
+os.makedirs(output_dir, exist_ok=True)
+
+# ===========================
+# 1️⃣ SIGNALVERLÄUFE
+# ===========================
+fig, axs = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
+signals = [
+    ('acc_x', 'acc_x_filt', 'acc_x_normfilt', 'Längsbeschleunigung [m/s²]'),
+    ('acc_y', 'acc_y_filt', 'acc_y_normfilt', 'Querbeschleunigung [m/s²]'),
+    ('yaw_acc', 'yaw_acc_filt', 'yaw_acc_normfilt', 'Gierbeschleunigung [rad/s²]')
+]
+
+for i, (raw, filt, norm, label) in enumerate(signals):
+    axs[i].plot(df['time_rel'], df[raw], alpha=0.5, label='Rohsignal')
+    axs[i].plot(df['time_rel'], df[filt], label='Butterworth')
+    axs[i].plot(df['time_rel'], df[norm], label='Norm-Filter')
+    axs[i].set_ylabel(label)
+    axs[i].legend()
+
+axs[-1].set_xlabel("Zeit [s]")
+plt.suptitle("Signalverläufe über Zeit")
+plt.tight_layout(rect=[0, 0, 1, 0.97])
+plt.show()
+fig.savefig(os.path.join(output_dir, "01_Signalverläufe.png"))
+
+# ===========================
+# 2️⃣ HISTOGRAMME
+# ===========================
+fig, axs = plt.subplots(1, 3, figsize=(14, 4))
+axes = ['acc_x_filt', 'acc_y_filt', 'yaw_acc_filt']
+titles = ['x-Beschl.', 'y-Beschl.', 'yaw-Beschl.']
+
+for ax, col, title in zip(axs, axes, titles):
+    ax.hist(df[col], bins=np.linspace(df[col].min(), df[col].max(), 20), color='skyblue', edgecolor='black')
+    ax.set_title(title)
+    ax.set_xlabel("Beschleunigungsbereich [m/s²]")
+    ax.set_ylabel("Auftretenshäufigkeit")
+
+plt.suptitle("Histogramme der gefilterten Beschleunigungen (Methode 1)")
+plt.tight_layout(rect=[0, 0, 1, 0.95])
+plt.show()
+fig.savefig(os.path.join(output_dir, "02_Histogramme.png"))
+
+# ===========================
+# 3️⃣ METHODE 2: SUMMENPLOTS
+# ===========================
+fig, axs = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
+for i, (sum_dict, center_dict, title) in enumerate([
+    (sum_x, sum_x_interval_centers, 'x-Beschleunigung'),
+    (sum_y, sum_y_interval_centers, 'y-Beschleunigung'),
+    (sum_yaw, sum_yaw_interval_centers, 'yaw-Beschleunigung')
+]):
+    for k in intervals:
+        axs[i].plot(center_dict[k], sum_dict[k], label=f"{k}s")
+    axs[i].set_ylabel(title)
+    axs[i].legend()
+axs[-1].set_xlabel("Zeit [s]")
+plt.suptitle("Methode 2: Aufsummierte Beschleunigungen")
+plt.tight_layout(rect=[0, 0, 1, 0.95])
+plt.show()
+fig.savefig(os.path.join(output_dir, "03_Summenplots.png"))
+
+# ===========================
+# 4️⃣ METHODE 3: RMS-PLOTS
+# ===========================
+fig, axs = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
+for i, (rms_dict, centers, title) in enumerate([
+    (acc_x_rms_dict, x_interval_centers, 'x-RMS'),
+    (acc_y_rms_dict, y_interval_centers, 'y-RMS'),
+    (yaw_acc_rms_dict, yaw_interval_centers, 'yaw-RMS')
+]):
+    for k in intervals:
+        axs[i].plot(centers[k], rms_dict[k], label=f"{k}s")
+    axs[i].set_ylabel(title)
+    axs[i].legend()
+axs[-1].set_xlabel("Zeit [s]")
+plt.suptitle("Methode 3: RMS-Beschleunigungen")
+plt.tight_layout(rect=[0, 0, 1, 0.95])
+plt.show()
+fig.savefig(os.path.join(output_dir, "04_RMS_Plots.png"))
+
+# ===========================
+# 5️⃣ BOX-PLOTS
+# ===========================
+data_box = [
+    df['acc_x'], df['acc_x_filt'], df['acc_x_normfilt'],
+    np.concatenate(list(sum_x.values())), np.concatenate(list(acc_x_rms_dict.values()))
+]
+labels = ['Roh', 'Butterworth', 'Norm', 'Sum', 'RMS']
+
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.boxplot(data_box, labels=labels)
+ax.set_title("Vergleich aller x-Beschleunigungsdaten")
+ax.set_ylabel("Beschleunigung [m/s²]")
+plt.show()
+fig.savefig(os.path.join(output_dir, "05_Boxplots_all.png"))
+
+# ===========================
+# 6️⃣ HEATMAPS
+# ===========================
+heat_data = pd.DataFrame({
+    'Roh': [df['acc_x'].std(), df['acc_y'].std(), df['yaw_acc'].std()],
+    'Filt': [df['acc_x_filt'].std(), df['acc_y_filt'].std(), df['yaw_acc_filt'].std()],
+    'Norm': [df['acc_x_normfilt'].std(), df['acc_y_normfilt'].std(), df['yaw_acc_normfilt'].std()],
+    'Sum': [np.mean(list(sum_x.values())), np.mean(list(sum_y.values())), np.mean(list(sum_yaw.values()))],
+    'RMS': [np.mean(list(acc_x_rms_dict.values())), np.mean(list(acc_y_rms_dict.values())), np.mean(list(yaw_acc_rms_dict.values()))]
+}, index=['x', 'y', 'yaw'])
+
+fig, ax = plt.subplots(figsize=(8, 5))
+sns.heatmap(heat_data, annot=True, cmap="coolwarm", fmt=".2f")
+ax.set_title("Heatmap: Vergleich aller Methoden & Achsen")
+plt.show()
+fig.savefig(os.path.join(output_dir, "06_Heatmaps_all.png"))
+
+# ===========================
+# 7️⃣ SCATTERPLOTS
+# ===========================
+fig, axs = plt.subplots(2, 2, figsize=(10, 8))
+pairs = [
+    ('acc_x_filt', 'acc_y_filt', 'x vs y (Butterworth)'),
+    ('acc_x_filt', 'yaw_acc_filt', 'x vs yaw (Butterworth)'),
+    (list(acc_x_rms_dict.values())[0], list(acc_y_rms_dict.values())[0], 'RMS x vs y'),
+    (list(sum_x.values())[0], list(sum_y.values())[0], 'Sum x vs y')
+]
+
+for ax, (xdata, ydata, title) in zip(axs.ravel(), pairs):
+    if isinstance(xdata, str):
+        ax.scatter(df[xdata], df[ydata], alpha=0.5)
+    else:
+        ax.scatter(xdata, ydata, alpha=0.5)
+    ax.set_title(title)
+plt.suptitle("Scatterplots – Zusammenhang zwischen Achsen & Methoden")
+plt.tight_layout(rect=[0, 0, 1, 0.95])
+plt.show()
+fig.savefig(os.path.join(output_dir, "07_Scatterplots.png"))
+
+
+
+
+# Excel abspeichern
+
 
 
 max_x = np.asarray(list(get_max_per_interval(df['time_rel'], df['acc_x_filt']).values()))
@@ -577,7 +732,7 @@ for signal_name in ["acc_x", "acc_y", "acc_yaw"]:
 
 
     # ---- Zeile 1: 1s Intervalle ----
-    for i in range(1, t_total_int, 2):
+    for i in range(1, t_total_int*2, 2):
         ws.merge_cells(start_row=1, start_column=i+1, end_row=1, end_column=min(i+2, t_total_int*2))
         ws.cell(row=1, column=i+1, value=f"{int(i/2)}-{int(i/2)+1}s")
         ws.column_dimensions[get_column_letter(i+1)].width = 10
@@ -587,7 +742,7 @@ for signal_name in ["acc_x", "acc_y", "acc_yaw"]:
     
     # ---- Zeile 2: Methode 1 ----
     m1_values = signals_m1[signal_name]
-    for i in range(1, t_total_int, 2):
+    for i in range(1, t_total_int*2, 2):
         ws.merge_cells(start_row=2, start_column=i+1, end_row=2, end_column=min(i+2, t_total_int*2))
         ws.cell(row=2, column=i+1, value=round(m1_values[int(i/2)], 3))
         cell = ws.cell(row=2, column=i+1)
@@ -710,6 +865,6 @@ for signal_name in ["acc_x", "acc_y", "acc_yaw"]:
             cell.fill = red_fill
 
 # Excel speichern
-wb.save(r"C:\Users\kompa\Documents\Uni\TUM\Bachelorarbeit\Codebase\IMU_Methoden_Vergleich_Signale.xlsx")
+wb.save(r"C:\Users\kompa\Documents\University\TUM\Bachelor Thesis\Excel Analysis\IMU_Methoden_Vergleich_Signale.xlsx")    # C:\Users\kompa\Documents\Uni\TUM\Bachelorarbeit\Codebase\IMU_Methoden_Vergleich_Signale.xlsx
 print("Excel-Datei 'IMU_Methoden_Vergleich_Signale.xlsx' erstellt!")
 
