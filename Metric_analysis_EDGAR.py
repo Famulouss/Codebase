@@ -5,7 +5,7 @@ import numpy as np
 import scipy.signal as signal
 import tkinter as tk
 from scipy.signal import butter, filtfilt, lfilter, freqz
-from tkinter import Tk, ttk
+from tkinter import Tk, ttk, filedialog
 from tkinter.filedialog import askopenfilename
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill
@@ -13,6 +13,8 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 import openpyxl
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Alignment
+import os
+import seaborn as sns
 
 # -------------------
 # Globale Variablen
@@ -324,11 +326,11 @@ for axis in ['x', 'y']:
     a = df[f'acc_{axis}_filt'].values
     t = df['time_rel'].values
     jerk = np.gradient(a, t)
-    df[f'jerk.{axis}_raw'] = jerk
+    df[f'jerk_{axis}_raw'] = jerk
 
 jerk_cut = 1.0  # Hz
-df["jerk.x"] = lowpass_filter(df["jerk.x_raw"].values, jerk_cut, fs_glob, order=2)
-df["jerk.y"] = lowpass_filter(df["jerk.y_raw"].values, jerk_cut, fs_glob, order=2)
+df["jerk_x_filt"] = lowpass_filter(df["jerk_x_raw"].values, jerk_cut, fs_glob, order=2)
+df["jerk_y_filt"] = lowpass_filter(df["jerk_y_raw"].values, jerk_cut, fs_glob, order=2)
 
 # -------------------
 # Alle Plots in EINEM Fenster
@@ -355,8 +357,8 @@ axes[1].grid()
 axes[1].legend()
 
 # 3) Jerk
-axes[2].plot(df['time_rel'], df['jerk.x'], label='Jerk X (filtered)')
-axes[2].plot(df['time_rel'], df['jerk.y'], label='Jerk Y (filtered)')
+axes[2].plot(df['time_rel'], df['jerk_x_filt'], label='Jerk X (filtered)')
+axes[2].plot(df['time_rel'], df['jerk_y_filt'], label='Jerk Y (filtered)')
 axes[2].set_xlabel('Time [s]')
 axes[2].set_ylabel('Jerk [m/s³]')
 axes[2].set_title('Jerk (from filtered Acceleration)')
@@ -366,16 +368,18 @@ axes[2].legend()
 plt.tight_layout()
 plt.show()
 
-# Integral/Aufsummierung der Beschleunigungskurve/-werte (Absolutwerte)
+# Integral/Aufsummierung der Beschleunigungs- und Jerkkurven (Absolutwerte)
 sum_x = integral_abs(df['time_rel'], df['acc_x_filt'])
 sum_y = integral_abs(df['time_rel'], df['acc_y_filt'])
 print(f"Integral x-Beschleunigung: {sum_x}\nIntegral y-Beschleunigung: {sum_y}")
 # Intervallweise berechnen (1s, 3s, 5s)
-t_total = df['time_rel'].iloc[-1]
+t_total = int(df['time_rel'].iloc[-1])
 intervals = [1.0, 3.0, 5.0, t_total]
 sum_x, sum_x_interval_centers = {}, {}
 sum_y, sum_y_interval_centers = {}, {}
-sum_yaw, sum_yaw_interval_centers = {}, {}
+sum_yaw_acc, sum_yaw_acc_interval_centers = {}, {}
+sum_jerk_x, sum_jerk_x_interval_centers = {}, {}
+sum_jerk_y, sum_jerk_y_interval_centers = {}, {}
 for i in intervals:
     temp1, temp2 = sliding_metrics(df['acc_x_filt'], df['time_rel'], i)
     sum_x[i] = temp1
@@ -384,38 +388,35 @@ for i in intervals:
     sum_y[i] = temp1
     sum_y_interval_centers[i] = temp2
     temp1, temp2 = sliding_metrics(df['yaw_acc_filt'], df['time_rel'], i)
-    sum_yaw[i] = temp1
-    sum_yaw_interval_centers[i] = temp2
-
+    sum_yaw_acc[i] = temp1
+    sum_yaw_acc_interval_centers[i] = temp2
+    temp1, temp2 = sliding_metrics(df['jerk_x_filt'], df['time_rel'], i)
+    sum_jerk_x[i] = temp1
+    sum_jerk_x_interval_centers[i] = temp2
+    temp1, temp2 = sliding_metrics(df['jerk_y_filt'], df['time_rel'], i)
+    sum_jerk_y[i] = temp1
+    sum_jerk_y_interval_centers[i] = temp2    
+sum_all = {'acc_x': sum_x, 'acc_y': sum_y, 'yaw_acc': sum_yaw_acc, 'jerk_x': sum_jerk_x, 'jerk_y': sum_jerk_y}
 
 # Beschleunigungsgraphen mit intervallweisem Integral
-fig, axes = plt.subplots(3, 1, figsize=(12, 12), sharex=True)
+num_plots = len(sum_all)
+fig, axes = plt.subplots(num_plots, 1, figsize=(12, 12), sharex=True)
 
-axes[0].plot(df['time_rel'], df['acc_x_filt'], label='Acc X (filtered)', linewidth=2)
-for i in intervals[:-1]:
-    axes[0].step(sum_x_interval_centers[i], sum_x[i], where="mid", label=f"Sliding Integral {i}s Intervall", linewidth=2)
-axes[0].plot()
-axes[0].set_ylabel('Acceleration [m/s²]')
-axes[0].set_title('Filtered x-acceleration')
-axes[0].grid()
-axes[0].legend()
-
-axes[1].plot(df['time_rel'], df['acc_y_filt'], label='Raw', alpha=0.7)
-for i in intervals[:-1]:
-    axes[1].step(sum_y_interval_centers[i], sum_y[i], where="mid", label=f"Sliding Integral {i}s Intervall", linewidth=2)
-axes[1].set_ylabel('Acceleration [m/s²]')
-axes[1].set_title('Filtered y-acceleration')
-axes[1].grid()
-axes[1].legend()
-
-axes[2].plot(df['time_rel'], df['yaw_acc_filt'], label='Raw', alpha=0.7)
-for i in intervals[:-1]:
-    axes[2].step(sum_yaw_interval_centers[i], sum_yaw[i], where="mid", label=f"Sliding Integral {i}s Intervall", linewidth=2)
-axes[2].set_ylabel('Acceleration [rad/s²]')
-axes[2].set_xlabel('Time [s]')
-axes[2].set_title('Filtered yaw-acceleration')
-axes[2].grid()
-axes[2].legend()
+for i, (key, sig) in enumerate(sum_all.items()):
+    axes[i].plot(df['time_rel'], df[f'{key}_filt'], label=f'{key} (filtered)', linewidth=2)
+    for j in intervals[:-1]:
+        axes[i].step(sum_x_interval_centers[j], sig[j], where="mid", label=f"Sliding Integral {j}s Intervall", linewidth=2)
+    axes[i].plot()
+    match key:
+        case 'yaw_acc':
+            axes[i].set_ylabel('Beschleunigung [rad/s²]')
+        case 'jerk_x' | 'jerk_y':
+            axes[i].set_ylabel('Jerk [m/s³]')
+        case _:
+            axes[i].set_ylabel('Beschleunigung [m/s²]')
+    axes[i].set_title(f'Summation des {key} Signals')
+    axes[i].grid()
+    axes[i].legend()
 
 plt.tight_layout()
 plt.show()
@@ -445,6 +446,7 @@ for i in intervals:
     temp1, temp2 = sliding_metrics(df['yaw_acc_normfilt'], df['time_rel'], i, weighted=True)
     yaw_acc_rms_dict[i] = temp1
     yaw_interval_centers[i] = temp2
+rms_all = {'x': acc_x_rms_dict, 'y': acc_y_rms_dict, 'yaw': yaw_acc_rms_dict}
 
 # Alternative rms Berechnungen laut Norm 2631
 # MTVV (max transient vibration value) aus sliding rms (Tau=1s)
@@ -516,12 +518,6 @@ plt.show()
 
 # Analyseplots machen
 
-import os
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-
 # ---------------------------
 # 🔧 Einstellungen
 # ---------------------------
@@ -529,20 +525,40 @@ plt.rcParams.update({'font.size': 10})
 output_dir = "Ergebnisse"
 os.makedirs(output_dir, exist_ok=True)
 
+# ---------------------------
+# Speicherordner festlegen
+# ---------------------------
+# Fenster verstecken (wir brauchen nur den Dialog)
+root = tk.Tk()
+root.withdraw()
+
+# Dialog zum Auswählen eines Ordners öffnen
+output_dir = filedialog.askdirectory(title="Bitte Speicherort auswählen")
+
+# Abbrechen-Check
+if not output_dir:
+    print("Kein Speicherort ausgewählt. Programm wird beendet.")
+    exit()
+
+print(f"Gewählter Speicherort: {output_dir}")
+
 # ===========================
 # 1️⃣ SIGNALVERLÄUFE
 # ===========================
-fig, axs = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
+fig, axs = plt.subplots(5, 1, figsize=(12, 10), sharex=True)
 signals = [
     ('acc_x', 'acc_x_filt', 'acc_x_normfilt', 'Längsbeschleunigung [m/s²]'),
     ('acc_y', 'acc_y_filt', 'acc_y_normfilt', 'Querbeschleunigung [m/s²]'),
-    ('yaw_acc', 'yaw_acc_filt', 'yaw_acc_normfilt', 'Gierbeschleunigung [rad/s²]')
+    ('yaw_acc', 'yaw_acc_filt', 'yaw_acc_normfilt', 'Gierbeschleunigung [rad/s²]'),
+    ('jerk_x_raw', 'jerk_x_filt', 'undefined', 'Längs-Jerk [m/s³]'),
+    ('jerk_y_raw', 'jerk_y_filt', 'undefined', 'Quer-Jerk [m/s³]')
 ]
 
 for i, (raw, filt, norm, label) in enumerate(signals):
     axs[i].plot(df['time_rel'], df[raw], alpha=0.5, label='Rohsignal')
     axs[i].plot(df['time_rel'], df[filt], label='Butterworth')
-    axs[i].plot(df['time_rel'], df[norm], label='Norm-Filter')
+    if norm != 'undefined':
+        axs[i].plot(df['time_rel'], df[norm], label='Norm-Filter')
     axs[i].set_ylabel(label)
     axs[i].legend()
 
@@ -555,31 +571,121 @@ fig.savefig(os.path.join(output_dir, "01_Signalverläufe.png"))
 # ===========================
 # 2️⃣ HISTOGRAMME
 # ===========================
-fig, axs = plt.subplots(1, 3, figsize=(14, 4))
-axes = ['acc_x_filt', 'acc_y_filt', 'yaw_acc_filt']
-titles = ['x-Beschl.', 'y-Beschl.', 'yaw-Beschl.']
+# Gefilterte Daten
+fig, axs = plt.subplots(1, 5, figsize=(14, 4))
+axes = ['acc_x_filt', 'acc_y_filt', 'yaw_acc_filt', 'jerk_x_filt', 'jerk_y_filt']
+titles = ['Längs-Beschl.', 'Quer-Beschl.', 'Gier-Beschl.', 'Längs-Jerk', 'Quer-Jerk']
 
 for ax, col, title in zip(axs, axes, titles):
-    ax.hist(df[col], bins=np.linspace(df[col].min(), df[col].max(), 20), color='skyblue', edgecolor='black')
+    # Histogramm berechnen
+    counts, bins, patches = ax.hist(df[col], bins=np.linspace(df[col].min(), df[col].max(), 20), color='skyblue', edgecolor='black')
+    # Relative Häufigkeiten berechnen (Alle Balken zusammen = 1)
+    counts_rel = counts / np.sum(counts)
+    # Original-Histogramm löschen
+    ax.cla()
+    # Neues Histogramm mit relativen Häufigkeiten zeichnen
+    ax.bar(bins[:-1], counts_rel, width=np.diff(bins), align='edge', color='skyblue', edgecolor='black')
     ax.set_title(title)
-    ax.set_xlabel("Beschleunigungsbereich [m/s²]")
+    if col == 'yaw_acc_filt':
+        ax.set_xlabel("Beschleunigungsbereich [rad/s²]")
+    elif col == 'jerk_x_filt' or col == 'jerk_y_filt':
+        ax.set_xlabel("Jerkbereich [m/s³]")
+    else:
+        ax.set_xlabel("Beschleunigungsbereich [m/s²]")
     ax.set_ylabel("Auftretenshäufigkeit")
 
-plt.suptitle("Histogramme der gefilterten Beschleunigungen (Methode 1)")
+plt.suptitle("Histogramme der gefilterten Beschleunigungen")
 plt.tight_layout(rect=[0, 0, 1, 0.95])
 plt.show()
-fig.savefig(os.path.join(output_dir, "02_Histogramme.png"))
+fig.savefig(os.path.join(output_dir, "02_Histogramme_Filt_Acc.png"))
+
+# Normgefilterte Daten
+fig, axs = plt.subplots(1, 3, figsize=(14, 4))
+axes = ['acc_x_normfilt', 'acc_y_normfilt', 'yaw_acc_normfilt']
+titles = ['x-Beschl.', 'y-Beschl.', 'Gier-Beschl.']
+
+for ax, col, title in zip(axs, axes, titles):
+    counts, bins, patches = ax.hist(df[col], bins=np.linspace(df[col].min(), df[col].max(), 20), color='skyblue', edgecolor='black')
+    # Relative Häufigkeiten berechnen (Alle Balken zusammen = 1)
+    counts_rel = counts / np.sum(counts)
+    # Original-Histogramm löschen
+    ax.cla()
+    # Neues Histogramm mit relativen Häufigkeiten zeichnen
+    ax.bar(bins[:-1], counts_rel, width=np.diff(bins), align='edge', color='skyblue', edgecolor='black')
+    
+    ax.set_title(title)
+    ax.set_xlabel("Beschleunigungsbereich [m/s² bzw. rad/s²]")
+    ax.set_ylabel("Auftretenshäufigkeit")
+
+plt.suptitle("Histogramme der nach ISO 2631 gefilterten Beschleunigungen")
+plt.tight_layout(rect=[0, 0, 1, 0.95])
+plt.show()
+fig.savefig(os.path.join(output_dir, "02_Histogramme_Normfilt_Acc.png"))
+
+titles = [1.0, 3.0, 5.0]
+# Summation (Methode 2)
+for direction in sum_all.keys():
+    fig, axs = plt.subplots(1, 3, figsize=(14, 4))
+    for ax, title in zip(axs, titles):
+        data = sum_all[direction][title]
+        counts, bins, patches = ax.hist(df[col], bins=np.linspace(df[col].min(), df[col].max(), 20), color='skyblue', edgecolor='black')
+        # Relative Häufigkeiten berechnen (Alle Balken zusammen = 1)
+        counts_rel = counts / np.sum(counts)
+        # Original-Histogramm löschen
+        ax.cla()
+        # Neues Histogramm mit relativen Häufigkeiten zeichnen
+        ax.bar(bins[:-1], counts_rel, width=np.diff(bins), align='edge', color='skyblue', edgecolor='black')
+
+        ax.set_title(f'{title}s')
+        if direction == 'yaw_acc':
+            ax.set_xlabel("Beschleunigungsbereich [rad/s²]")
+        elif direction == 'jerk_x' or direction == 'jerk_y':
+            ax.set_xlabel("Jerkbereich [m/s³]")
+        else:
+            ax.set_xlabel("Beschleunigungsbereich [m/s²]")
+        ax.set_ylabel("Auftretenshäufigkeit")
+
+    plt.suptitle(f"Histogramme der Summationsmethode (Methode 2): {direction}-Richtung")
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.show()
+    fig.savefig(os.path.join(output_dir, f"02_Histogramme_sum_{direction}.png"))
+
+# RMS Werte
+for direction in rms_all.keys():
+    fig, axs = plt.subplots(1, 3, figsize=(14, 4))
+    for ax, title in zip(axs, titles):
+        data = rms_all[direction][title]
+        counts, bins, patches = ax.hist(df[col], bins=np.linspace(df[col].min(), df[col].max(), 20), color='skyblue', edgecolor='black')
+        # Relative Häufigkeiten berechnen (Alle Balken zusammen = 1)
+        counts_rel = counts / np.sum(counts)
+        # Original-Histogramm löschen
+        ax.cla()
+        # Neues Histogramm mit relativen Häufigkeiten zeichnen
+        ax.bar(bins[:-1], counts_rel, width=np.diff(bins), align='edge', color='skyblue', edgecolor='black')
+        ax.set_title(f'{title}s')
+        if direction == 'yaw':
+            ax.set_xlabel("Beschleunigungsbereich [rad/s²]")
+        else:
+            ax.set_xlabel("Beschleunigungsbereich [m/s²]")
+        ax.set_ylabel("Auftretenshäufigkeit")
+
+    plt.suptitle(f"Histogramme der RMS-Methode (Methode 3): {direction}-Richtung")
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.show()
+    fig.savefig(os.path.join(output_dir, f"02_Histogramme_rms_{direction}.png"))
 
 # ===========================
 # 3️⃣ METHODE 2: SUMMENPLOTS
 # ===========================
-fig, axs = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
+fig, axs = plt.subplots(5, 1, figsize=(12, 8), sharex=True)
 for i, (sum_dict, center_dict, title) in enumerate([
     (sum_x, sum_x_interval_centers, 'x-Beschleunigung'),
     (sum_y, sum_y_interval_centers, 'y-Beschleunigung'),
-    (sum_yaw, sum_yaw_interval_centers, 'yaw-Beschleunigung')
+    (sum_yaw_acc, sum_yaw_acc_interval_centers, 'yaw-Beschleunigung'),
+    (sum_jerk_x, sum_jerk_x_interval_centers, 'x-Jerk'),
+    (sum_jerk_y, sum_jerk_y_interval_centers, 'y-Jerk')
 ]):
-    for k in intervals:
+    for k in intervals[:-1]:
         axs[i].plot(center_dict[k], sum_dict[k], label=f"{k}s")
     axs[i].set_ylabel(title)
     axs[i].legend()
@@ -598,7 +704,7 @@ for i, (rms_dict, centers, title) in enumerate([
     (acc_y_rms_dict, y_interval_centers, 'y-RMS'),
     (yaw_acc_rms_dict, yaw_interval_centers, 'yaw-RMS')
 ]):
-    for k in intervals:
+    for k in intervals[:-1]:
         axs[i].plot(centers[k], rms_dict[k], label=f"{k}s")
     axs[i].set_ylabel(title)
     axs[i].legend()
@@ -611,33 +717,101 @@ fig.savefig(os.path.join(output_dir, "04_RMS_Plots.png"))
 # ===========================
 # 5️⃣ BOX-PLOTS
 # ===========================
-data_box = [
+labels = ['Roh', 'Butterworth', 'Norm', 'Sum_1s', 'Sum_3s', 'Sum_5s', 'RMS_1s', 'RMS_3s', 'RMS_5s']
+labels_jerk = ['Roh', 'Butterworth', 'Sum_1s', 'Sum_3s', 'Sum_5s']
+
+# Längsbeschleunigung
+data_box_acc_x = [
     df['acc_x'], df['acc_x_filt'], df['acc_x_normfilt'],
-    np.concatenate(list(sum_x.values())), np.concatenate(list(acc_x_rms_dict.values()))
+    sum_x[1.0], sum_x[3.0], sum_x[5.0], acc_x_rms_dict[1.0], acc_x_rms_dict[3.0], acc_x_rms_dict[5.0]
 ]
-labels = ['Roh', 'Butterworth', 'Norm', 'Sum', 'RMS']
+
+# Querbeschleunigung
+data_box_acc_y = [
+    df['acc_y'], df['acc_y_filt'], df['acc_y_normfilt'],
+    sum_y[1.0], sum_y[3.0], sum_y[5.0], acc_y_rms_dict[1.0], acc_y_rms_dict[3.0], acc_y_rms_dict[5.0]
+]
+
+# Gierbeschleunigung
+data_box_acc_yaw = [
+    df['yaw_acc'], df['yaw_acc_filt'], df['yaw_acc_normfilt'],
+    sum_yaw_acc[1.0], sum_yaw_acc[3.0], sum_yaw_acc[5.0], yaw_acc_rms_dict[1.0], yaw_acc_rms_dict[3.0], yaw_acc_rms_dict[5.0]
+]
+
+# Längsjerk
+data_box_jerk_x = [
+    df['jerk_x_raw'], df['jerk_x_filt'], sum_jerk_x[1.0], sum_jerk_x[3.0], sum_jerk_x[5.0]
+]
+
+# Querjerk
+data_box_jerk_y = [
+    df['jerk_x_raw'], df['jerk_x_filt'], sum_jerk_x[1.0], sum_jerk_x[3.0], sum_jerk_x[5.0]
+]
 
 fig, ax = plt.subplots(figsize=(10, 5))
-ax.boxplot(data_box, labels=labels)
+ax.boxplot(data_box_acc_x, labels=labels)
 ax.set_title("Vergleich aller x-Beschleunigungsdaten")
 ax.set_ylabel("Beschleunigung [m/s²]")
 plt.show()
-fig.savefig(os.path.join(output_dir, "05_Boxplots_all.png"))
+fig.savefig(os.path.join(output_dir, "05_Boxplots_acc_x.png"))
+
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.boxplot(data_box_acc_y, labels=labels)
+ax.set_title("Vergleich aller y-Beschleunigungsdaten")
+ax.set_ylabel("Beschleunigung [m/s²]")
+plt.show()
+fig.savefig(os.path.join(output_dir, "05_Boxplots_acc_y.png"))
+
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.boxplot(data_box_acc_yaw, labels=labels)
+ax.set_title("Vergleich aller Gier-Beschleunigungsdaten")
+ax.set_ylabel("Beschleunigung [rad/s²]")
+plt.show()
+fig.savefig(os.path.join(output_dir, "05_Boxplots_acc_yaw.png"))
+
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.boxplot(data_box_jerk_x, labels=labels_jerk)
+ax.set_title("Vergleich aller Jerkdaten in x-Richtung")
+ax.set_ylabel("Jerk [m/s³]")
+plt.show()
+fig.savefig(os.path.join(output_dir, "05_Boxplots_jerk_x.png"))
+
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.boxplot(data_box_jerk_y, labels=labels_jerk)
+ax.set_title("Vergleich aller Jerkdaten in y-Richtung")
+ax.set_ylabel("Jerk [m/s³]")
+plt.show()
+fig.savefig(os.path.join(output_dir, "05_Boxplots_jerk_y.png"))
 
 # ===========================
 # 6️⃣ HEATMAPS
 # ===========================
+sum_x_means, sum_y_means, sum_yaw_acc_means, sum_jerk_x_means, sum_jerk_y_means = {}, {}, {}, {}, {}
+rms_x_means, rms_y_means, rms_yaw_means = {}, {}, {}
+for i in intervals[:-1]:
+    sum_x_means[i] = np.mean(sum_x[i])
+    sum_y_means[i] = np.mean(sum_y[i])
+    sum_yaw_acc_means[i] = np.mean(sum_yaw_acc[i])
+    sum_jerk_x_means[i] = np.mean(sum_jerk_x[i])
+    sum_jerk_y_means[i] = np.mean(sum_jerk_x[i])
+    rms_x_means[i] = np.mean(acc_x_rms_dict[i])
+    rms_y_means[i] = np.mean(acc_y_rms_dict[i])
+    rms_yaw_means[i] = np.mean(yaw_acc_rms_dict[i])
 heat_data = pd.DataFrame({
-    'Roh': [df['acc_x'].std(), df['acc_y'].std(), df['yaw_acc'].std()],
-    'Filt': [df['acc_x_filt'].std(), df['acc_y_filt'].std(), df['yaw_acc_filt'].std()],
-    'Norm': [df['acc_x_normfilt'].std(), df['acc_y_normfilt'].std(), df['yaw_acc_normfilt'].std()],
-    'Sum': [np.mean(list(sum_x.values())), np.mean(list(sum_y.values())), np.mean(list(sum_yaw.values()))],
-    'RMS': [np.mean(list(acc_x_rms_dict.values())), np.mean(list(acc_y_rms_dict.values())), np.mean(list(yaw_acc_rms_dict.values()))]
-}, index=['x', 'y', 'yaw'])
+    'Roh': [df['acc_x'].std(), df['acc_y'].std(), df['yaw_acc'].std(), df['jerk_x_raw'].std(), df['jerk_y_raw'].std()],
+    'Filt': [df['acc_x_filt'].std(), df['acc_y_filt'].std(), df['yaw_acc_filt'].std(), df['jerk_x_filt'].std(), df['jerk_y_filt'].std()],
+    'Norm': [df['acc_x_normfilt'].std(), df['acc_y_normfilt'].std(), df['yaw_acc_normfilt'].std(), None, None],
+    'Sum_1s': [sum_x_means[intervals[0]], sum_y_means[intervals[0]], sum_yaw_acc_means[intervals[0]], sum_jerk_x_means[intervals[0]], sum_jerk_y_means[intervals[0]]],
+    'Sum_3s': [sum_x_means[intervals[1]], sum_y_means[intervals[1]], sum_yaw_acc_means[intervals[1]], sum_jerk_x_means[intervals[1]], sum_jerk_y_means[intervals[1]]],
+    'Sum_5s': [sum_x_means[intervals[2]], sum_y_means[intervals[2]], sum_yaw_acc_means[intervals[2]], sum_jerk_x_means[intervals[2]], sum_jerk_y_means[intervals[2]]],
+    'RMS_1s': [rms_x_means[intervals[0]], rms_y_means[intervals[0]], rms_yaw_means[intervals[0]], None, None],
+    'RMS_3s': [rms_x_means[intervals[1]], rms_y_means[intervals[1]], rms_yaw_means[intervals[1]], None, None],
+    'RMS_5s': [rms_x_means[intervals[2]], rms_y_means[intervals[2]], rms_yaw_means[intervals[2]], None, None]
+}, index=['x', 'y', 'yaw', 'jerk x', 'jerk y'])
 
 fig, ax = plt.subplots(figsize=(8, 5))
 sns.heatmap(heat_data, annot=True, cmap="coolwarm", fmt=".2f")
-ax.set_title("Heatmap: Vergleich aller Methoden & Achsen")
+ax.set_title("Heatmap: Vergleich der Durchschnittswerte")
 plt.show()
 fig.savefig(os.path.join(output_dir, "06_Heatmaps_all.png"))
 
@@ -663,12 +837,7 @@ plt.tight_layout(rect=[0, 0, 1, 0.95])
 plt.show()
 fig.savefig(os.path.join(output_dir, "07_Scatterplots.png"))
 
-
-
-
 # Excel abspeichern
-
-
 
 max_x = np.asarray(list(get_max_per_interval(df['time_rel'], df['acc_x_filt']).values()))
 max_y = np.asarray(list(get_max_per_interval(df['time_rel'], df['acc_y_filt']).values()))
@@ -686,7 +855,7 @@ signals_m1 = {
 signals_m2 = {
     "acc_x": sum_x,
     "acc_y": sum_y,
-    "acc_yaw": sum_yaw
+    "acc_yaw": sum_yaw_acc
 }
 
 # Methode 3 Werte (Dicts)
@@ -865,6 +1034,6 @@ for signal_name in ["acc_x", "acc_y", "acc_yaw"]:
             cell.fill = red_fill
 
 # Excel speichern
-wb.save(r"C:\Users\kompa\Documents\University\TUM\Bachelor Thesis\Excel Analysis\IMU_Methoden_Vergleich_Signale.xlsx")    # C:\Users\kompa\Documents\Uni\TUM\Bachelorarbeit\Codebase\IMU_Methoden_Vergleich_Signale.xlsx
+wb.save(output_dir)    # C:\Users\kompa\Documents\University\TUM\Bachelor Thesis\Excel Analysis\IMU_Methoden_Vergleich_Signale.xlsx
 print("Excel-Datei 'IMU_Methoden_Vergleich_Signale.xlsx' erstellt!")
 
