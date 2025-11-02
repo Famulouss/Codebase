@@ -25,8 +25,8 @@ import seaborn as sns
 norm_thresh = [0.315, 0.5, 0.63, 0.8, 1.25, 1.6, 2, 2.5]
 thresholds_x = {'m1': 1.23, 'm2': [10.0, 10.0, 10.0], 'm3':norm_thresh}
 thresholds_y = {'m1': 0.98, 'm2': [10.0, 10.0, 10.0], 'm3':norm_thresh}
-thresholds_yaw = {'m1': 0.97, 'm2': [10.0, 10.0, 10.0], 'm3':norm_thresh}
-thresholds_dict = {'acc_x': thresholds_x, 'acc_y': thresholds_y, 'acc_yaw': thresholds_yaw}
+thresholds_yaw = {'m1': 0.95, 'm2': [10.0, 10.0, 10.0], 'm3':norm_thresh}
+thresholds_dict = {'acc_x': thresholds_x, 'acc_y': thresholds_y, 'acc_yaw': thresholds_yaw, 'jerk_x': 5, 'jerk_y': 5}
 
 
 thresh_x = 1.23     # m/s^2
@@ -628,7 +628,7 @@ for direction in sum_all.keys():
     fig, axs = plt.subplots(1, 3, figsize=(14, 4))
     for ax, title in zip(axs, titles):
         data = sum_all[direction][title]
-        counts, bins, patches = ax.hist(df[col], bins=np.linspace(df[col].min(), df[col].max(), 20), color='skyblue', edgecolor='black')
+        counts, bins, patches = ax.hist(data, bins=np.linspace(np.min(data), np.max(data), 20), color='skyblue', edgecolor='black')
         # Relative Häufigkeiten berechnen (Alle Balken zusammen = 1)
         counts_rel = counts / np.sum(counts)
         # Original-Histogramm löschen
@@ -655,7 +655,7 @@ for direction in rms_all.keys():
     fig, axs = plt.subplots(1, 3, figsize=(14, 4))
     for ax, title in zip(axs, titles):
         data = rms_all[direction][title]
-        counts, bins, patches = ax.hist(df[col], bins=np.linspace(df[col].min(), df[col].max(), 20), color='skyblue', edgecolor='black')
+        counts, bins, patches = ax.hist(data, bins=np.linspace(np.min(data), np.max(data), 20), color='skyblue', edgecolor='black')
         # Relative Häufigkeiten berechnen (Alle Balken zusammen = 1)
         counts_rel = counts / np.sum(counts)
         # Original-Histogramm löschen
@@ -842,6 +842,8 @@ fig.savefig(os.path.join(output_dir, "07_Scatterplots.png"))
 max_x = np.asarray(list(get_max_per_interval(df['time_rel'], df['acc_x_filt']).values()))
 max_y = np.asarray(list(get_max_per_interval(df['time_rel'], df['acc_y_filt']).values()))
 max_yaw = np.asarray(list(get_max_per_interval(df['time_rel'], df['yaw_filt']).values()))
+max_jerk_x = np.asarray(list(get_max_per_interval(df['time_rel'], df['jerk_x_filt']).values()))
+max_jerk_y = np.asarray(list(get_max_per_interval(df['time_rel'], df['jerk_y_filt']).values()))
 t_total_int = len(max_x)
 
 # Signale und ihre Methode1 Werte
@@ -890,7 +892,7 @@ for signal_name in ["acc_x", "acc_y", "acc_yaw"]:
     ws.cell(row=6, column=1, value="Methode 2 (3s Intervall)")
     ws.cell(row=7, column=1, value="Methode 2 (5s Intervall)")
     ws.cell(row=8, column=1, value="Methode 2 (5s Intervall)")
-    ws.cell(row=9, column=1, value="Methode 2 (t_total)")
+    ws.cell(row=9, column=1, value="Methode 2 (t_total)", Alignment='left')
     ws.cell(row=10, column=1, value="Methode 3 (1s Intervall)")
     ws.cell(row=11, column=1, value="Methode 3 (1s Intervall)")
     ws.cell(row=12, column=1, value="Methode 3 (2s Intervall)")
@@ -898,6 +900,7 @@ for signal_name in ["acc_x", "acc_y", "acc_yaw"]:
     ws.cell(row=14, column=1, value="Methode 3 (5s Intervall)")
     ws.cell(row=15, column=1, value="Methode 3 (5s Intervall)")
     ws.cell(row=16, column=1, value="Methode 3 (t_total)")
+    ws.cell(row=17, column=1, value="Jerk (Maxwerte pro Intervall)")
 
 
     # ---- Zeile 1: 1s Intervalle ----
@@ -1032,8 +1035,23 @@ for signal_name in ["acc_x", "acc_y", "acc_yaw"]:
     cell.alignment = Alignment(horizontal='center')
     if cell.value > thresholds_dict[signal_name]['m3'][3]:
             cell.fill = red_fill
+    # Jerk
+    if signal_name == 'acc_x' or signal_name == 'acc_y':
+        if signal_name == 'acc_x':
+            sig = 'jerk_y'
+            jerk_max_interval = max_jerk_x
+        else:
+            sig = 'jerk_y'
+            jerk_max_interval = max_jerk_y
+        for i in range(1, t_total_int*2, 2):
+            ws.merge_cells(start_row=17, start_column=i+1, end_row=17, end_column=min(i+2, t_total_int*2))
+            ws.cell(row=17, column=i+1, value=round(jerk_max_interval[int(i/2)], 3))
+            cell = ws.cell(row=17, column=i+1)
+            cell.alignment = Alignment(horizontal='center')
+            if cell.value > thresholds_dict[sig]:
+                cell.fill = red_fill
 
 # Excel speichern
-wb.save(output_dir)    # C:\Users\kompa\Documents\University\TUM\Bachelor Thesis\Excel Analysis\IMU_Methoden_Vergleich_Signale.xlsx
+wb.save(f'{output_dir}\Signalvergleich.xlsx')    # C:\Users\kompa\Documents\University\TUM\Bachelor Thesis\Excel Analysis\IMU_Methoden_Vergleich_Signale.xlsx
 print("Excel-Datei 'IMU_Methoden_Vergleich_Signale.xlsx' erstellt!")
 
