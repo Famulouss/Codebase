@@ -4,19 +4,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, auc
 from tkinter.filedialog import askopenfilename
 from tkinter import Tk
-import matplotlib.colors as mcolors
-import scipy.signal as signal
-import tkinter as tk
-from scipy.signal import butter, filtfilt, lfilter, freqz
-from tkinter import Tk, ttk, filedialog
-from openpyxl import Workbook
-from openpyxl.styles import PatternFill
-from openpyxl.utils.dataframe import dataframe_to_rows
-import openpyxl
-from openpyxl.utils import get_column_letter
-from openpyxl.styles import Alignment
-import os
-import seaborn as sns
+from scipy.signal import butter, filtfilt
 
 
 fs_glob = 10
