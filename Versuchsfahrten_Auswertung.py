@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.metrics import roc_curve, auc
+from sklearn.metrics import roc_curve, auc, precision_recall_curve, average_precision_score
 from tkinter.filedialog import askopenfilename
 from tkinter import Tk
 from scipy.signal import butter, filtfilt
@@ -590,8 +590,50 @@ for sig in signale:
 for sig in signale[:-2]:
     plot_roc_for_dicts(rms_all[sig], sum_centers_all[sig], f"RMS-Werte - {sig}")
 
+# =====================================================
+# 7️⃣  Precision-Recall Kurve
+# =====================================================
+# Zeitbasierte Signale
+y_scores = {}
+# Wahre Labels (y_true)
+y_true = df['discomfort'].values 
 
+for sig in signale:
+    # Signalwerte (y_scores)
+    y_scores[sig] = df[f'{sig}_filt'].values 
+    
+    # Plot
+    precision, recall, pr_thresholds = precision_recall_curve(y_true, y_scores[sig])
+    ap = average_precision_score(y_true, y_scores[sig])
 
+    plt.plot(recall, precision, label=f'{sig} (AP={ap:.2f})')
+    plt.xlabel('Recall (TPR)')
+    plt.ylabel('Precision')
+    plt.legend()
+    plt.title(f'Precision-Recall Kurve {sig}_Signal')
+    plt.grid(True)
+
+# Summationswerte
+for sig in sum_all.keys():
+    for interval in sig.keys(): 
+        y_scores= np.array(sum_all[sig][interval])  # Summationswerte
+        y_true = np.array([
+        1 if is_uncomfortable(t) else 0
+        for t in sum_centers_all[sig][interval]
+        ])
+        precision, recall, pr_thresholds = precision_recall_curve(y_true, y_scores)
+        ap = average_precision_score(y_true, y_scores)
+        plt.plot(recall, precision, label=f'{signal_name} (AP={ap:.2f})')
+        
+    plt.plot(recall, precision, label=f'{sig} (AP={ap:.2f})')
+    plt.xlabel('Recall (TPR)')
+    plt.ylabel('Precision')
+    plt.legend()
+    plt.title('Precision-Recall Kurve {sig}-Signal')
+    plt.grid(True)
+    
+
+# RMS-WErte
 
 # =====================================================
 # 7️⃣  VERGLEICH MIT LITERATUR
