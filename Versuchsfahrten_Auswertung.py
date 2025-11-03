@@ -244,44 +244,74 @@ def berechne_grenzwert(signal, label, p=90):
         return np.nan
     return np.percentile(signal[label == 1], p)
 
-def plot_roc_for_dicts(signal_dict, centers_dict, signal_name):
-    """ Plottet die ROC Kurven für die Signal-Dictionaries von der Summations- und RMS-Methode.
-        Format der Dictionaries: {Intervallgröße: Werte, ... }"""
-    plt.figure(figsize=(10, 6))
+def plot_roc_pr_for_dicts(signal_dict, centers_dict, signal_name):
+    """Plottet ROC- & PR-Kurven pro Intervall (1s, 3s, 5s) für Summations- oder RMS-Daten."""
+    intervals = list(signal_dict.keys())
+    fig, axes = plt.subplots(1, len(intervals), figsize=(18, 5))
 
-    for interval, values in signal_dict.items():
+    if len(intervals) == 1:
+        axes = [axes]  # falls nur ein Intervall vorhanden ist
+
+    for ax, interval in zip(axes, intervals):
+        values = signal_dict[interval]
         centers = centers_dict[interval]
 
         # Labels erzeugen
-        y_true = [1 if is_uncomfortable(t) else 0 for t in centers]
+        y_true = np.array([1 if is_uncomfortable(t) else 0 for t in centers])
+        y_scores = np.array(values)
 
-        # ROC berechnen
-        fpr, tpr, thresholds = roc_curve(y_true, values)
+        # ROC
+        fpr, tpr, thresholds = roc_curve(y_true, y_scores)
         roc_auc = auc(fpr, tpr)
 
-        # Optimalen Grenzwert bestimmen (Youden-Index)
-        optimal_index = np.argmax(tpr - fpr)
-        optimal_threshold = thresholds[optimal_index]
+        # Optimaler Schwellenwert (Youden-Index)
+        youden_index = tpr - fpr
+        optimal_idx = np.argmax(youden_index)
+        optimal_threshold = thresholds[optimal_idx]
 
-        # Finde Schwelle mit TPR >= target_tpr, die der Youden-Schwelle am nächsten ist
+        # Schwelle mit TPR >= Zielwert
         idx_sens = np.where(tpr >= target_tpr)[0]
         if len(idx_sens) > 0:
-            best_idx = idx_sens[0]  # erste Schwelle, die gewünschte Sensitivität erreicht
+            best_idx = idx_sens[0]
             best_threshold = thresholds[best_idx]
+        else:
+            best_idx = optimal_idx
+            best_threshold = optimal_threshold
 
-        # Plot
-        plt.plot(fpr, tpr, label=f'{interval} (AUC = {roc_auc:.2f}, Opt. Th Youden= {optimal_threshold:.2f}, Opt. Th (TPR > 0,9) = {best_threshold:.2f})')
-        plt.scatter(fpr[optimal_idx], tpr[optimal_idx], color='red', label=f'Optimal (Youden): {optimal_threshold:.2f}')
-        plt.scatter(fpr[best_idx], tpr[best_idx], color='blue', label=f'Optimal (TPR > 0,9): {best_threshold:.2f}')
+        # Precision-Recall
+        precision, recall, pr_thresholds = precision_recall_curve(y_true, y_scores)
+        ap = average_precision_score(y_true, y_scores)
 
-    plt.plot([0, 1], [0, 1], 'k--', label='Zufall')
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title(f'ROC-Kurven für {signal_name}')
-    plt.legend()
-    plt.grid(True)
+        # ROC (linke y-Achse)
+        color_roc = 'darkorange'
+        ax.plot(fpr, tpr, color=color_roc, lw=2, label=f'ROC (AUC = {roc_auc:.2f})')
+        ax.plot([0, 1], [0, 1], color='gray', lw=1, linestyle='--')
+        ax.scatter(fpr[optimal_idx], tpr[optimal_idx], color='red', label=f'Youden: {optimal_threshold:.2f}')
+        ax.scatter(fpr[best_idx], tpr[best_idx], color='blue', label=f'TPR ≥ 0.9: {best_threshold:.2f}')
+        ax.set_xlabel('False Positive Rate & Recall')
+        ax.set_ylabel('True Positive Rate', color=color_roc)
+        ax.tick_params(axis='y', labelcolor=color_roc)
+        ax.grid(True)
+
+        # Precision-Recall (rechte y-Achse)
+        ax2 = ax.twinx()
+        color_pr = 'tab:blue'
+        ax2.plot(recall, precision, color=color_pr, lw=2, linestyle='--', label=f'PR (AP = {ap:.2f})')
+        ax2.set_ylabel('Precision', color=color_pr)
+        ax2.tick_params(axis='y', labelcolor=color_pr)
+
+        # Titel und Legenden
+        ax.set_title(f"{interval}s-Intervall")
+
+        # Gemeinsame Legende pro Subplot
+        lines, labels = ax.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        ax.legend(lines + lines2, labels + labels2, loc='lower right')
+
+    fig.suptitle(f"ROC & Precision-Recall – {signal_name}", fontsize=14)
     plt.tight_layout()
     plt.show()
+
 
 
 # =====================================================
@@ -410,7 +440,7 @@ for key, val in grenzwerte.items():
 # =====================================================
 # Intervallweise berechnen (1s, 3s, 5s)
 t_total = int(df['time_rel'].iloc[-1])
-intervals = [1.0, 3.0, 5.0, t_total]
+intervals = [1.0, 3.0, 5.0]
 sum_x, sum_x_interval_centers = {}, {}
 sum_y, sum_y_interval_centers = {}, {}
 sum_acc_yaw, sum_acc_yaw_interval_centers = {}, {}
@@ -445,43 +475,43 @@ sum_centers_all = {'acc_x': sum_x_interval_centers,
 signale = ['acc_x', 'acc_y', 'acc_yaw', 'jerk_x', 'jerk_y']
 intervals = [1.0, 3.0, 5.0]
 
-# === HAUPTSCHLEIFE ===
-for sig in signale:
-    for interval in intervals:
-        centers = sum_x_interval_centers[interval]
-        sums = sum_all[sig][interval]
+# # === HAUPTSCHLEIFE ===
+# for sig in signale:
+#     for interval in intervals:
+#         centers = sum_x_interval_centers[interval]
+#         sums = sum_all[sig][interval]
 
-        # komfortabel / unkomfortabel trennen
-        comfortable_vals = []
-        uncomfortable_vals = []
+#         # komfortabel / unkomfortabel trennen
+#         comfortable_vals = []
+#         uncomfortable_vals = []
 
-        for c, val in zip(centers, sums):
-            if is_uncomfortable(c):
-                uncomfortable_vals.append(val)
-            else:
-                comfortable_vals.append(val)
+#         for c, val in zip(centers, sums):
+#             if is_uncomfortable(c):
+#                 uncomfortable_vals.append(val)
+#             else:
+#                 comfortable_vals.append(val)
 
-        # === GRENZWERT berechnen (z. B. 90. Perzentil der unkomfortablen Intervalle) ===
-        if len(uncomfortable_vals) > 0:
-            grenzwert = np.percentile(uncomfortable_vals, 90)
-        else:
-            grenzwert = np.nan
+#         # === GRENZWERT berechnen (z. B. 90. Perzentil der unkomfortablen Intervalle) ===
+#         if len(uncomfortable_vals) > 0:
+#             grenzwert = np.percentile(uncomfortable_vals, 90)
+#         else:
+#             grenzwert = np.nan
 
-        # === PLOT ===
-        plt.figure(figsize=(8, 5))
-        bins = 30  # Anzahl der Bins anpassbar
-        plt.hist(comfortable_vals, bins=bins, alpha=0.6, color='skyblue', label='Komfortabel')
-        plt.hist(uncomfortable_vals, bins=bins, alpha=0.6, color='salmon', label='Unkomfortabel')
-        plt.axvline(grenzwert, color='red', linestyle='--', label=f'Grenzwert {grenzwert:.2f}')
-        plt.title(f"Histogramm Summationswerte ({sig.upper()}-Achse, {interval}s)")
-        plt.xlabel("Summationswert [m/s² * s]")
-        plt.ylabel("Auftretungshäufigkeit")
-        plt.legend()
-        plt.grid(True, alpha=0.3)
+#         # === PLOT ===
+#         plt.figure(figsize=(8, 5))
+#         bins = 30  # Anzahl der Bins anpassbar
+#         plt.hist(comfortable_vals, bins=bins, alpha=0.6, color='skyblue', label='Komfortabel')
+#         plt.hist(uncomfortable_vals, bins=bins, alpha=0.6, color='salmon', label='Unkomfortabel')
+#         plt.axvline(grenzwert, color='red', linestyle='--', label=f'Grenzwert {grenzwert:.2f}')
+#         plt.title(f"Histogramm Summationswerte ({sig.upper()}-Achse, {interval}s)")
+#         plt.xlabel("Summationswert [m/s² * s]")
+#         plt.ylabel("Auftretungshäufigkeit")
+#         plt.legend()
+#         plt.grid(True, alpha=0.3)
 
-        # Anzeigen und speichern
-        plt.tight_layout()
-        plt.show()
+#         # Anzeigen und speichern
+#         plt.tight_layout()
+#         plt.show()
 # =====================================================
 # 6️⃣  RMS-Berechnung
 # =====================================================
@@ -512,25 +542,25 @@ rms_all = {'acc_x': acc_x_rms_dict, 'acc_y': acc_y_rms_dict, 'acc_yaw': acc_yaw_
 # =====================================================
 # 6️⃣  RMS-DARSTELLUNG
 # =====================================================
-for sig in ['acc_x', 'acc_y', 'acc_yaw']:
-    plt.figure(figsize=(10, 6))
-    plt.plot(df['time_rel'], df[f'{sig}_filt'], alpha=0.5, label='Signal')
-    for win in intervals:
-        plt.plot(x_interval_centers[win], rms_all[sig][win],
-                 label=f'RMS {win:.0f}s')
-    plt.title(f"RMS über Zeitfenster – {sig}")
-    plt.xlabel("Zeit [s]")
-    plt.ylabel(f"{sig} RMS [m/s²]")
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
+# for sig in ['acc_x', 'acc_y', 'acc_yaw']:
+#     plt.figure(figsize=(10, 6))
+#     plt.plot(df['time_rel'], df[f'{sig}_filt'], alpha=0.5, label='Signal')
+#     for win in intervals:
+#         plt.plot(x_interval_centers[win], rms_all[sig][win],
+#                  label=f'RMS {win:.0f}s')
+#     plt.title(f"RMS über Zeitfenster – {sig}")
+#     plt.xlabel("Zeit [s]")
+#     plt.ylabel(f"{sig} RMS [m/s²]")
+#     plt.legend()
+#     plt.grid(True)
+#     plt.tight_layout()
+#     plt.show()
 
 
 # =====================================================
 # 5️⃣  HISTOGRAMM-VERGLEICH
 # =====================================================
-signale = ['acc_x_filt', 'acc_y_filt', 'acc_yaw_filt', 'jerk_x_filt', 'jerk_y_filt']
+signale = ['acc_x_filt', 'acc_y_filt', 'acc_yaw_filt', 'yaw_filt', 'jerk_x_filt', 'jerk_y_filt']
 
 for s in signale:
     plt.figure(figsize=(6, 3))
@@ -549,7 +579,11 @@ for s in signale:
 # =====================================================
 optimal_thresholds = {}
 for s in signale:
-    fpr, tpr, thresholds = roc_curve(df['discomfort'], df[s])
+    y_true = df['discomfort']
+    y_scores = df[s]
+
+    # ROC
+    fpr, tpr, thresholds = roc_curve(y_true, y_scores)
     roc_auc = auc(fpr, tpr)
 
     # 👉 Youden-Index berechnen
@@ -564,17 +598,37 @@ for s in signale:
         best_idx = idx_sens[0]  # erste Schwelle, die gewünschte Sensitivität erreicht
         best_threshold = thresholds[best_idx]
 
-    # ROC-Plot
-    plt.figure()
-    plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'AUC = {roc_auc:.2f}')
-    plt.plot([0, 1], [0, 1], color='gray', lw=1, linestyle='--')
-    plt.scatter(fpr[optimal_idx], tpr[optimal_idx], color='red', label=f'Optimal (Youden): {optimal_threshold:.2f}')
-    plt.scatter(fpr[best_idx], tpr[best_idx], color='blue', label=f'Optimal (TPR > 0,9): {best_threshold:.2f}')
-    plt.title(f"ROC-Kurve – {s}")
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.legend(loc="lower right")
-    plt.grid(True)
+    # P/R
+    precision, recall, pr_thresholds = precision_recall_curve(y_true, y_scores)
+    ap = average_precision_score(y_true, y_scores)
+
+    # ROC-P/R-Plot
+    fig, ax1 = plt.subplots()
+
+    # ROC-Kurve (linke Achse)
+    color_roc = 'darkorange'
+    ax1.plot(fpr, tpr, color=color_roc, lw=2, label=f'ROC (AUC = {roc_auc:.2f})')
+    ax1.plot([0, 1], [0, 1], color='gray', lw=1, linestyle='--')
+    ax1.scatter(fpr[optimal_idx], tpr[optimal_idx], color='red', label=f'Youden: {optimal_threshold:.2f}')
+    ax1.scatter(fpr[best_idx], tpr[best_idx], color='blue', label=f'TPR ≥ 0.9: {best_threshold:.2f}')
+    ax1.set_xlabel('False Positive Rate & Recall')
+    ax1.set_ylabel('True Positive Rate', color=color_roc)
+    ax1.tick_params(axis='y', labelcolor=color_roc)
+    ax1.grid(True)
+
+    # Precision-Recall-Kurve (rechte Achse)
+    ax2 = ax1.twinx()
+    color_pr = 'tab:blue'
+    ax2.plot(recall, precision, color=color_pr, lw=2, linestyle='--', label=f'PR (AP = {ap:.2f})')
+    ax2.set_ylabel('Precision', color=color_pr)
+    ax2.tick_params(axis='y', labelcolor=color_pr)
+
+    # Titel und Legenden
+    fig.suptitle(f"ROC & Precision-Recall – {s}")
+    lines, labels = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines + lines2, labels + labels2, loc='lower right')
+
     plt.tight_layout()
     plt.show()
 
@@ -585,55 +639,14 @@ for s, val in optimal_thresholds.items():
 signale = ['acc_x', 'acc_y', 'acc_yaw', 'jerk_x', 'jerk_y']
 
 for sig in signale:
-    plot_roc_for_dicts(sum_all[sig], sum_centers_all[sig], f"Summationswerte - {sig}")
+    plot_roc_pr_for_dicts(sum_all[sig], sum_centers_all[sig], f"Summationswerte - {sig}")
 
 for sig in signale[:-2]:
-    plot_roc_for_dicts(rms_all[sig], sum_centers_all[sig], f"RMS-Werte - {sig}")
+    plot_roc_pr_for_dicts(rms_all[sig], sum_centers_all[sig], f"RMS-Werte - {sig}")
 
 # =====================================================
-# 7️⃣  Precision-Recall Kurve
+# 7️⃣  Confusion-Matrizen
 # =====================================================
-# Zeitbasierte Signale
-y_scores = {}
-# Wahre Labels (y_true)
-y_true = df['discomfort'].values 
-
-for sig in signale:
-    # Signalwerte (y_scores)
-    y_scores[sig] = df[f'{sig}_filt'].values 
-    
-    # Plot
-    precision, recall, pr_thresholds = precision_recall_curve(y_true, y_scores[sig])
-    ap = average_precision_score(y_true, y_scores[sig])
-
-    plt.plot(recall, precision, label=f'{sig} (AP={ap:.2f})')
-    plt.xlabel('Recall (TPR)')
-    plt.ylabel('Precision')
-    plt.legend()
-    plt.title(f'Precision-Recall Kurve {sig}_Signal')
-    plt.grid(True)
-
-# Summationswerte
-for sig in sum_all.keys():
-    for interval in sig.keys(): 
-        y_scores= np.array(sum_all[sig][interval])  # Summationswerte
-        y_true = np.array([
-        1 if is_uncomfortable(t) else 0
-        for t in sum_centers_all[sig][interval]
-        ])
-        precision, recall, pr_thresholds = precision_recall_curve(y_true, y_scores)
-        ap = average_precision_score(y_true, y_scores)
-        plt.plot(recall, precision, label=f'{signal_name} (AP={ap:.2f})')
-        
-    plt.plot(recall, precision, label=f'{sig} (AP={ap:.2f})')
-    plt.xlabel('Recall (TPR)')
-    plt.ylabel('Precision')
-    plt.legend()
-    plt.title('Precision-Recall Kurve {sig}-Signal')
-    plt.grid(True)
-    
-
-# RMS-WErte
 
 # =====================================================
 # 7️⃣  VERGLEICH MIT LITERATUR
