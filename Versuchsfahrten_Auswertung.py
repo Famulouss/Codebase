@@ -25,6 +25,18 @@ fahrt_id = 'Klamm Parkplatz Gierrate'
 target_tpr = 0.9
 grenzwerte_gesamt = {}
 
+# =====================================================
+# UNKOMFORTABLE-ZEITEN EINTRAGEN (manuell anpassbar)
+# =====================================================
+# Liste mit Start- und Endzeiten (Sekunden)
+unangenehme_zeiten = [
+    (48, 50),
+    (60, 62),
+    (73.5, 75.5),
+    (95, 97),
+    (101.4, 103.4)
+]
+
 # -------------------
 # Hilfsfunktionen
 # -------------------
@@ -355,17 +367,7 @@ def save_thresholds(all_thresholds, person_id, fahrt_id, save_dir="grenzwerte"):
 
     print(f"✅ Grenzwerte gespeichert in: {filename}")
 
-# =====================================================
-# 1️⃣  UNKOMFORTABLE-ZEITEN EINTRAGEN (manuell anpassbar)
-# =====================================================
-# Liste mit Start- und Endzeiten (Sekunden)
-unangenehme_zeiten = [
-    (48, 50),
-    (60, 62),
-    (73.5, 75.5),
-    (95, 97),
-    (101.4, 103.4)
-]
+
 
 # =====================================================
 # 2️⃣  DATEN EINLESEN
@@ -480,16 +482,17 @@ for key, val in grenzwerte.items():
 # =====================================================
 # 5️⃣  HISTOGRAMM-VERGLEICH
 # =====================================================
+bins = 30  # Anzahl der Bins anpassbar
 signale = ['acc_x_filt', 'acc_y_filt', 'acc_yaw_filt', 'yaw_filt', 'jerk_x_filt', 'jerk_y_filt']
 
 for s in signale:
     plt.figure(figsize=(6, 3))
-    plt.hist(df.loc[df['discomfort'] == 0, s], bins=40, alpha=0.6, label='Komfortabel')
-    plt.hist(df.loc[df['discomfort'] == 1, s], bins=40, alpha=0.6, label='Unkomfortabel')
+    plt.hist(df.loc[df['discomfort'] == 0, s], bins=bins, alpha=0.6, label='Komfortabel', density=True)
+    plt.hist(df.loc[df['discomfort'] == 1, s], bins=bins, alpha=0.6, label='Unkomfortabel', density=True)
     plt.axvline(grenzwerte[s], color='red', linestyle='--', label=f'Grenzwert {grenzwerte[s]:.2f}')
     plt.title(f"Histogramm – {s}")
     plt.xlabel(s + " [m/s²]")
-    plt.ylabel("Häufigkeit")
+    plt.ylabel("Wahrscheinlichkeitsdichte")
     plt.legend()
     plt.tight_layout()
     plt.show()
@@ -558,13 +561,17 @@ for sig in signale:
 
         # === PLOT ===
         plt.figure(figsize=(8, 5))
-        bins = 30  # Anzahl der Bins anpassbar
-        plt.hist(comfortable_vals, bins=bins, alpha=0.6, color='skyblue', label='Komfortabel')
-        plt.hist(uncomfortable_vals, bins=bins, alpha=0.6, color='salmon', label='Unkomfortabel')
+        plt.hist(comfortable_vals, bins=bins, alpha=0.6, label='Komfortabel', density=True)
+        plt.hist(uncomfortable_vals, bins=bins, alpha=0.6, label='Unkomfortabel', density=True)
         plt.axvline(grenzwert, color='red', linestyle='--', label=f'Grenzwert {grenzwert:.2f}')
         plt.title(f"Histogramm Summationswerte ({sig.upper()}-Achse, {interval}s)")
-        plt.xlabel("Summationswert [m/s² * s]")
-        plt.ylabel("Auftretungshäufigkeit")
+        if sig in ['acc_x', 'acc_y']:
+            plt.xlabel("Summationswert [m/s²]")
+        elif sig in ['acc_yaw']:
+            plt.xlabel("Summationswert [rad/s²]")
+        elif sig in ['jerk_x', 'jerk_y']:
+            plt.xlabel("Summationswert [m/s³]")
+        plt.ylabel("Wahrscheinlichkeitsdichte")
         plt.legend()
         plt.grid(True, alpha=0.3)
 
