@@ -367,7 +367,51 @@ def save_thresholds(all_thresholds, person_id, fahrt_id, save_dir="grenzwerte"):
 
     print(f"✅ Grenzwerte gespeichert in: {filename}")
 
+def plot_two_normalized_histograms(data1, data2, grenzwert, bins=40, label1="Komfortabel", label2="Unkomfortabel",
+                                   title="Normalisiertes Histogramm", xlabel="Wert", color1='tab:blue', color2='tab:orange'):
+    """
+    Plottet zwei Histogramme in normalisierter Form (Summe der Balkenhöhen = 1).
 
+    Parameter:
+        data1, data2: array-ähnlich
+            Die beiden Datensätze (z. B. komfortabel / unkomfortabel)
+        bins: int oder Sequenz
+            Anzahl oder Grenzen der Bins
+        label1, label2: str
+            Beschriftungen der beiden Histogramme
+        title: str
+            Titel des Plots
+        xlabel: str
+            Achsenbeschriftung (x-Achse)
+        color1, color2: str
+            Farben der beiden Histogramme
+    """
+
+    # --- Histogramme berechnen ---
+    counts1, bins1 = np.histogram(data1, bins=bins)
+    counts2, bins2 = np.histogram(data2, bins=bins)
+
+    # --- Normalisierung (Summe der Balkenhöhen = 1) ---
+    counts1 = counts1 / np.sum(counts1) if np.sum(counts1) != 0 else counts1
+    counts2 = counts2 / np.sum(counts2) if np.sum(counts2) != 0 else counts2
+
+    # --- Plot ---
+    plt.figure(figsize=(6, 3))
+    width = np.diff(bins1)[0]
+
+
+    plt.hist(data1, bins=bins, alpha=0.6, label=label1, color=color1, weights=np.ones(len(data1))/len(data1))
+    plt.hist(data2, bins=bins, alpha=0.6, label=label2, color=color2, weights=np.ones(len(data2))/len(data2))
+    #plt.bar(bins1[:-1], counts1, width=width, alpha=0.6, label=label1, color=color1, align='edge')
+    #plt.bar(bins2[:-1], counts2, width=width, alpha=0.6, label=label2, color=color2, align='edge')
+    plt.axvline(grenzwert, color='red', linestyle='--', label=f'Grenzwert {grenzwert:.2f}')
+
+    plt.xlabel(xlabel)
+    plt.ylabel("Relative Häufigkeit (Σ=1)")
+    plt.title(title)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
 
 # =====================================================
 # 2️⃣  DATEN EINLESEN
@@ -485,17 +529,37 @@ for key, val in grenzwerte.items():
 bins = 30  # Anzahl der Bins anpassbar
 signale = ['acc_x_filt', 'acc_y_filt', 'acc_yaw_filt', 'yaw_filt', 'jerk_x_filt', 'jerk_y_filt']
 
-for s in signale:
-    plt.figure(figsize=(6, 3))
-    plt.hist(df.loc[df['discomfort'] == 0, s], bins=bins, alpha=0.6, label='Komfortabel', density=True)
-    plt.hist(df.loc[df['discomfort'] == 1, s], bins=bins, alpha=0.6, label='Unkomfortabel', density=True)
-    plt.axvline(grenzwerte[s], color='red', linestyle='--', label=f'Grenzwert {grenzwerte[s]:.2f}')
-    plt.title(f"Histogramm – {s}")
-    plt.xlabel(s + " [m/s²]")
-    plt.ylabel("Wahrscheinlichkeitsdichte")
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
+plot_two_normalized_histograms(df.loc[df['discomfort'] == 0, 'acc_x_filt'], 
+                               df.loc[df['discomfort'] == 1, 'acc_x_filt'], 
+                               grenzwerte['acc_x_filt'], 
+                               title=f"Histogramm - acc_x_filt", 
+                               xlabel='Beschleunigungswerte [m/s²]')
+plot_two_normalized_histograms(df.loc[df['discomfort'] == 0, 'acc_y_filt'], 
+                               df.loc[df['discomfort'] == 1, 'acc_y_filt'], 
+                               grenzwerte['acc_y_filt'], 
+                               title=f"Histogramm - acc_y_filt", 
+                               xlabel='Beschleunigungswerte [m/s²]')
+plot_two_normalized_histograms(df.loc[df['discomfort'] == 0, 'acc_yaw_filt'], 
+                               df.loc[df['discomfort'] == 1, 'acc_yaw_filt'], 
+                               grenzwerte['acc_yaw_filt'], 
+                               title=f"Histogramm - acc_yaw_filt", 
+                               xlabel='Rotationsbeschleunigung [rad/s²]')
+plot_two_normalized_histograms(df.loc[df['discomfort'] == 0, 'yaw_filt'], 
+                               df.loc[df['discomfort'] == 1, 'yaw_filt'], 
+                               grenzwerte['yaw_filt'], 
+                               title=f"Histogramm - yaw_filt", 
+                               xlabel='Rotationsgeschwindigkeit [rad/s]')
+plot_two_normalized_histograms(df.loc[df['discomfort'] == 0, 'jerk_x_filt'], 
+                               df.loc[df['discomfort'] == 1, 'jerk_x_filt'], 
+                               grenzwerte['jerk_x_filt'], 
+                               title=f"Histogramm - jerk_x_filt", 
+                               xlabel='Jerkwerte [m/s³]')
+plot_two_normalized_histograms(df.loc[df['discomfort'] == 0, 'jerk_y_filt'], 
+                               df.loc[df['discomfort'] == 1, 'jerk_y_filt'], 
+                               grenzwerte['jerk_y_filt'], 
+                               title=f"Histogramm - jerk_y_filt", 
+                               xlabel='Beschleunigungswerte [m/s³]')
+
 
 # =====================================================
 # 6️⃣  Summen-Berechnung
