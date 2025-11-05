@@ -5,37 +5,27 @@ from sklearn.metrics import roc_curve, auc, precision_recall_curve, average_prec
 from tkinter.filedialog import askopenfilename
 from tkinter import Tk
 from scipy.signal import butter, filtfilt
-import matplotlib.colors as mcolors
 import scipy.signal as signal
 import tkinter as tk
-from scipy.signal import butter, filtfilt, lfilter, freqz
-from tkinter import ttk, filedialog
-from openpyxl import Workbook
-from openpyxl.styles import PatternFill
-from openpyxl.utils.dataframe import dataframe_to_rows
-import openpyxl
-from openpyxl.utils import get_column_letter
-from openpyxl.styles import Alignment
+from scipy.signal import butter, filtfilt
+from tkinter import ttk
 import os
-import seaborn as sns
 import json
 
 person_id = 'VP1'
-fahrt_id = 'Klamm Parkplatz Gierrate'
+fahrt_id = 'Szenario 3'
 target_tpr = 0.9
 grenzwerte_gesamt = {}
+delta_time = 0.5
 
 # =====================================================
 # UNKOMFORTABLE-ZEITEN EINTRAGEN (manuell anpassbar)
 # =====================================================
 # Liste mit Start- und Endzeiten (Sekunden)
-unangenehme_zeiten = [
-    (48, 50),
-    (60, 62),
-    (73.5, 75.5),
-    (95, 97),
-    (101.4, 103.4)
-]
+unangenehme_zeiten = [18, 20, 22, 58, 69]
+unangenehme_intervalle = []
+for i, time in enumerate(unangenehme_zeiten):
+    unangenehme_intervalle.append((time-delta_time, time+delta_time))
 
 # -------------------
 # Hilfsfunktionen
@@ -249,11 +239,35 @@ def get_max_per_interval(time, signal, interval_size=1.0):
 
     return max_values
 
-def is_uncomfortable(time_value):
+def timestamp_is_uncomfortable(time_value):
     """Prüft, ob Zeitwert innerhalb eines unkomfortablen Intervalls liegt."""
-    # Hole den Label für den Zeitwert (nächster Zeitindex)
+    # Hole das Label für den Zeitwert (nächster Zeitindex)
     idx = (df['time_rel'] - time_value).abs().idxmin()
     return df.loc[idx, 'discomfort'] == 1
+
+def interval_is_uncomfortable(time_value, interval_length=1.0):
+    """
+    Prüft, ob innerhalb eines gegebenen Zeitintervalls ein unkomfortabler Zeitstempel liegt.
+
+    Parameter:
+        time_value (float): Zentrum des Intervalls (in Sekunden)
+        interval_length (float): Länge des Intervalls (z. B. 1.0 für 1 s)
+    
+    Rückgabe:
+        bool: True, wenn im Intervall ein unkomfortabler Wert liegt, sonst False
+    """
+
+    # Intervallgrenzen berechnen
+    half = interval_length / 2
+    start = time_value - half
+    end = time_value + half
+
+    # Daten innerhalb des Intervalls auswählen
+    mask = (df['time_rel'] >= start) & (df['time_rel'] <= end)
+    interval_data = df.loc[mask, 'discomfort']
+
+    # Prüfen, ob irgendein Wert in diesem Intervall unkomfortabel ist
+    return (interval_data == 1).any()
 
 def berechne_grenzwert(signal, label, p=90):
     if label.sum() == 0:
@@ -273,7 +287,7 @@ def plot_roc_pr_for_dicts(signal_dict, centers_dict, signal_name, sig_n, methode
         centers = centers_dict[interval]
 
         # Labels erzeugen
-        y_true = np.array([1 if is_uncomfortable(t) else 0 for t in centers])
+        y_true = np.array([1 if timestamp_is_uncomfortable(t) else 0 for t in centers])
         y_scores = np.array(values)
 
         # ROC
@@ -306,11 +320,11 @@ def plot_roc_pr_for_dicts(signal_dict, centers_dict, signal_name, sig_n, methode
         roc_idx = np.argmin(np.abs(roc_thresholds - best_f1_threshold))
         
         # Grenzwerte abspeichern
-        grenzwerte_gesamt[f'{sig_n}_filt'][methode] = {}
-        grenzwerte_gesamt[f'{sig_n}_filt'][methode][interval] = {}
-        grenzwerte_gesamt[f'{sig_n}_filt'][methode][interval]['F1'] = best_f1_threshold
-        grenzwerte_gesamt[f'{sig_n}_filt'][methode][interval]['Youden'] = best_youden_threshold
-        grenzwerte_gesamt[f'{sig_n}_filt'][methode][interval][f'TPR>={target_tpr}'] = best_roc_threshold
+        grenzwerte_gesamt[f'{sig_n}_filt_abs'][methode] = {}
+        grenzwerte_gesamt[f'{sig_n}_filt_abs'][methode][interval] = {}
+        grenzwerte_gesamt[f'{sig_n}_filt_abs'][methode][interval]['F1'] = best_f1_threshold
+        grenzwerte_gesamt[f'{sig_n}_filt_abs'][methode][interval]['Youden'] = best_youden_threshold
+        grenzwerte_gesamt[f'{sig_n}_filt_abs'][methode][interval][f'TPR>={target_tpr}'] = best_roc_threshold
 
         # ROC (linke y-Achse)
         color_roc = 'darkorange'
@@ -354,7 +368,7 @@ def save_thresholds(all_thresholds, person_id, fahrt_id, save_dir="grenzwerte"):
     Speichert die Grenzwerte pro Fahrt und Person als JSON-Datei.
     """
     os.makedirs(save_dir, exist_ok=True)
-    filename = f"{save_dir}/person_{person_id}_fahrt_{fahrt_id}.json"
+    filename = f"{save_dir}/person_{person_id}_{fahrt_id}.json"
 
     data = {
         "person_id": person_id,
@@ -365,7 +379,7 @@ def save_thresholds(all_thresholds, person_id, fahrt_id, save_dir="grenzwerte"):
     with open(filename, "w") as f:
         json.dump(data, f, indent=4)
 
-    print(f"✅ Grenzwerte gespeichert in: {filename}")
+    print(f"Grenzwerte gespeichert in: {filename}")
 
 def plot_two_normalized_histograms(data1, data2, grenzwert, bins=40, label1="Komfortabel", label2="Unkomfortabel",
                                    title="Normalisiertes Histogramm", xlabel="Wert", color1='tab:blue', color2='tab:orange'):
@@ -395,16 +409,21 @@ def plot_two_normalized_histograms(data1, data2, grenzwert, bins=40, label1="Kom
     counts1 = counts1 / np.sum(counts1) if np.sum(counts1) != 0 else counts1
     counts2 = counts2 / np.sum(counts2) if np.sum(counts2) != 0 else counts2
 
+    if "acc_yaw" in title:
+        grenzwert_einheit = 'rad/s²'
+    elif "yaw" in title:
+        grenzwert_einheit = 'rad/s'
+    elif "jerk" in title:
+        grenzwert_einheit = 'm/s³'
+    elif 'acc' in title:
+        grenzwert_einheit = 'm/s²'
+
     # --- Plot ---
     plt.figure(figsize=(6, 3))
-    width = np.diff(bins1)[0]
-
 
     plt.hist(data1, bins=bins, alpha=0.6, label=label1, color=color1, weights=np.ones(len(data1))/len(data1))
     plt.hist(data2, bins=bins, alpha=0.6, label=label2, color=color2, weights=np.ones(len(data2))/len(data2))
-    #plt.bar(bins1[:-1], counts1, width=width, alpha=0.6, label=label1, color=color1, align='edge')
-    #plt.bar(bins2[:-1], counts2, width=width, alpha=0.6, label=label2, color=color2, align='edge')
-    plt.axvline(grenzwert, color='red', linestyle='--', label=f'Grenzwert {grenzwert:.2f}')
+    plt.axvline(grenzwert, color='red', linestyle='--', label=f' 90%-Grenzwert = {grenzwert:.2f} {grenzwert_einheit}')
 
     plt.xlabel(xlabel)
     plt.ylabel("Relative Häufigkeit (Σ=1)")
@@ -496,30 +515,35 @@ jerk_cut = 1.0  # Hz
 df["jerk_x_filt"] = lowpass_filter(df["jerk_x_raw"].values, jerk_cut, fs_glob, order=2)
 df["jerk_y_filt"] = lowpass_filter(df["jerk_y_raw"].values, jerk_cut, fs_glob, order=2)
 
+# Absolutwerte der Signale bilden
+signale = ['acc_x_filt', 'acc_y_filt', 'acc_yaw_filt', 'yaw_filt', 'jerk_x_filt', 'jerk_y_filt']
+for s in signale:
+    df[f'{s}_abs'] = np.abs(df[s])
+
 
 # =====================================================
 # 3️⃣  LABEL ERSTELLEN
 # =====================================================
 df['discomfort'] = 0  # Default = komfortabel
 
-for start, end in unangenehme_zeiten:
+for start, end in unangenehme_intervalle:
     df.loc[(df['time_rel'] >= start) & (df['time_rel'] <= end), 'discomfort'] = 1
 
-print(f"✅ {df['discomfort'].sum()} Zeitpunkte als 'unkomfortabel' markiert.")
+print(f"{df['discomfort'].sum()} Zeitpunkte als 'unkomfortabel' markiert.")
 
 # =====================================================
 # 4️⃣  PERZENTIL-GRENZWERTE
 # =====================================================
 grenzwerte = {
-    'acc_x_filt': berechne_grenzwert(df['acc_x_filt'], df['discomfort']),
-    'acc_y_filt': berechne_grenzwert(df['acc_y_filt'], df['discomfort']),
-    'acc_yaw_filt': berechne_grenzwert(df['acc_yaw_filt'], df['discomfort']),
-    'yaw_filt': berechne_grenzwert(df['yaw_filt'], df['discomfort']),
-    'jerk_x_filt': berechne_grenzwert(df['jerk_x_filt'], df['discomfort']),
-    'jerk_y_filt': berechne_grenzwert(df['jerk_y_filt'], df['discomfort'])
+    'acc_x_filt_abs': berechne_grenzwert(df['acc_x_filt_abs'], df['discomfort']),
+    'acc_y_filt_abs': berechne_grenzwert(df['acc_y_filt_abs'], df['discomfort']),
+    'acc_yaw_filt_abs': berechne_grenzwert(df['acc_yaw_filt_abs'], df['discomfort']),
+    'yaw_filt_abs': berechne_grenzwert(df['yaw_filt_abs'], df['discomfort']),
+    'jerk_x_filt_abs': berechne_grenzwert(df['jerk_x_filt_abs'], df['discomfort']),
+    'jerk_y_filt_abs': berechne_grenzwert(df['jerk_y_filt_abs'], df['discomfort'])
 }
 
-print("\n📊 Empirische 90%-Grenzwerte (aus unangenehmen Phasen):")
+print("\nEmpirische 90%-Grenzwerte (aus unangenehmen Phasen):")
 for key, val in grenzwerte.items():
     print(f"{key:10s}: {val:.3f} m/s²")
 
@@ -527,36 +551,35 @@ for key, val in grenzwerte.items():
 # 5️⃣  HISTOGRAMM-VERGLEICH
 # =====================================================
 bins = 30  # Anzahl der Bins anpassbar
-signale = ['acc_x_filt', 'acc_y_filt', 'acc_yaw_filt', 'yaw_filt', 'jerk_x_filt', 'jerk_y_filt']
 
-plot_two_normalized_histograms(df.loc[df['discomfort'] == 0, 'acc_x_filt'], 
-                               df.loc[df['discomfort'] == 1, 'acc_x_filt'], 
-                               grenzwerte['acc_x_filt'], 
+plot_two_normalized_histograms(df.loc[df['discomfort'] == 0, 'acc_x_filt_abs'], 
+                               df.loc[df['discomfort'] == 1, 'acc_x_filt_abs'], 
+                               grenzwerte['acc_x_filt_abs'], 
                                title=f"Histogramm - acc_x_filt", 
                                xlabel='Beschleunigungswerte [m/s²]')
-plot_two_normalized_histograms(df.loc[df['discomfort'] == 0, 'acc_y_filt'], 
-                               df.loc[df['discomfort'] == 1, 'acc_y_filt'], 
-                               grenzwerte['acc_y_filt'], 
+plot_two_normalized_histograms(df.loc[df['discomfort'] == 0, 'acc_y_filt_abs'], 
+                               df.loc[df['discomfort'] == 1, 'acc_y_filt_abs'], 
+                               grenzwerte['acc_y_filt_abs'], 
                                title=f"Histogramm - acc_y_filt", 
                                xlabel='Beschleunigungswerte [m/s²]')
-plot_two_normalized_histograms(df.loc[df['discomfort'] == 0, 'acc_yaw_filt'], 
-                               df.loc[df['discomfort'] == 1, 'acc_yaw_filt'], 
-                               grenzwerte['acc_yaw_filt'], 
+plot_two_normalized_histograms(df.loc[df['discomfort'] == 0, 'acc_yaw_filt_abs'], 
+                               df.loc[df['discomfort'] == 1, 'acc_yaw_filt_abs'], 
+                               grenzwerte['acc_yaw_filt_abs'], 
                                title=f"Histogramm - acc_yaw_filt", 
                                xlabel='Rotationsbeschleunigung [rad/s²]')
-plot_two_normalized_histograms(df.loc[df['discomfort'] == 0, 'yaw_filt'], 
-                               df.loc[df['discomfort'] == 1, 'yaw_filt'], 
-                               grenzwerte['yaw_filt'], 
+plot_two_normalized_histograms(df.loc[df['discomfort'] == 0, 'yaw_filt_abs'], 
+                               df.loc[df['discomfort'] == 1, 'yaw_filt_abs'], 
+                               grenzwerte['yaw_filt_abs'], 
                                title=f"Histogramm - yaw_filt", 
                                xlabel='Rotationsgeschwindigkeit [rad/s]')
-plot_two_normalized_histograms(df.loc[df['discomfort'] == 0, 'jerk_x_filt'], 
-                               df.loc[df['discomfort'] == 1, 'jerk_x_filt'], 
-                               grenzwerte['jerk_x_filt'], 
+plot_two_normalized_histograms(df.loc[df['discomfort'] == 0, 'jerk_x_filt_abs'], 
+                               df.loc[df['discomfort'] == 1, 'jerk_x_filt_abs'], 
+                               grenzwerte['jerk_x_filt_abs'], 
                                title=f"Histogramm - jerk_x_filt", 
                                xlabel='Jerkwerte [m/s³]')
-plot_two_normalized_histograms(df.loc[df['discomfort'] == 0, 'jerk_y_filt'], 
-                               df.loc[df['discomfort'] == 1, 'jerk_y_filt'], 
-                               grenzwerte['jerk_y_filt'], 
+plot_two_normalized_histograms(df.loc[df['discomfort'] == 0, 'jerk_y_filt_abs'], 
+                               df.loc[df['discomfort'] == 1, 'jerk_y_filt_abs'], 
+                               grenzwerte['jerk_y_filt_abs'], 
                                title=f"Histogramm - jerk_y_filt", 
                                xlabel='Beschleunigungswerte [m/s³]')
 
@@ -612,7 +635,7 @@ for sig in signale:
         uncomfortable_vals = []
 
         for c, val in zip(centers, sums):
-            if is_uncomfortable(c):
+            if interval_is_uncomfortable(c, interval):
                 uncomfortable_vals.append(val)
             else:
                 comfortable_vals.append(val)
@@ -624,24 +647,14 @@ for sig in signale:
             grenzwert = np.nan
 
         # === PLOT ===
-        plt.figure(figsize=(8, 5))
-        plt.hist(comfortable_vals, bins=bins, alpha=0.6, label='Komfortabel', density=True)
-        plt.hist(uncomfortable_vals, bins=bins, alpha=0.6, label='Unkomfortabel', density=True)
-        plt.axvline(grenzwert, color='red', linestyle='--', label=f'Grenzwert {grenzwert:.2f}')
-        plt.title(f"Histogramm Summationswerte ({sig.upper()}-Achse, {interval}s)")
         if sig in ['acc_x', 'acc_y']:
-            plt.xlabel("Summationswert [m/s²]")
+            xlabel = "Summationswert [m/s²]"
         elif sig in ['acc_yaw']:
-            plt.xlabel("Summationswert [rad/s²]")
+            xlabel = "Summationswert [rad/s²]"
         elif sig in ['jerk_x', 'jerk_y']:
-            plt.xlabel("Summationswert [m/s³]")
-        plt.ylabel("Wahrscheinlichkeitsdichte")
-        plt.legend()
-        plt.grid(True, alpha=0.3)
+            xlabel = "Summationswert [m/s³]"
+        plot_two_normalized_histograms(comfortable_vals, uncomfortable_vals, grenzwert, bins=bins, title=f"Histogramm Summationswerte ({sig}, {interval:.0f}s-Intervall)", xlabel=xlabel)
 
-        # Anzeigen und speichern
-        plt.tight_layout()
-        plt.show()
 # =====================================================
 # RMS-Berechnung
 # =====================================================
@@ -680,7 +693,10 @@ for sig in ['acc_x', 'acc_y', 'acc_yaw']:
                  label=f'RMS {win:.0f}s')
     plt.title(f"RMS über Zeitfenster – {sig}")
     plt.xlabel("Zeit [s]")
-    plt.ylabel(f"{sig} RMS [m/s²]")
+    if sig == 'acc_yaw':
+        plt.ylabel(f"{sig} RMS [rad/s²]")
+    else:
+        plt.ylabel(f"{sig} RMS [m/s²]")
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
@@ -689,7 +705,7 @@ for sig in ['acc_x', 'acc_y', 'acc_yaw']:
 # =====================================================
 # 6️⃣  ROC-P/R-ANALYSE
 # =====================================================
-signale = ['acc_x_filt', 'acc_y_filt', 'acc_yaw_filt', 'yaw_filt', 'jerk_x_filt', 'jerk_y_filt']
+signale = ['acc_x_filt_abs', 'acc_y_filt_abs', 'acc_yaw_filt_abs', 'yaw_filt_abs', 'jerk_x_filt_abs', 'jerk_y_filt_abs']
 
 youden_thresholds = {}
 for s in signale:
@@ -733,6 +749,15 @@ for s in signale:
     grenzwerte_gesamt[s]['M1']['Youden'] = best_youden_threshold
     grenzwerte_gesamt[s]['M1'][f'TPR>={target_tpr}'] = best_roc_threshold
 
+    if "acc_yaw" in s:
+        grenzwert_einheit = 'rad/s²'
+    elif "yaw" in s:
+        grenzwert_einheit = 'rad/s'
+    elif "jerk" in s:
+        grenzwert_einheit = 'm/s³'
+    elif 'acc' in s:
+        grenzwert_einheit = 'm/s²'
+
     # ROC-P/R-Plot
     fig, ax1 = plt.subplots()
 
@@ -740,12 +765,12 @@ for s in signale:
     color_roc = 'darkorange'
     ax1.plot(fpr, tpr, color=color_roc, lw=2, label=f'ROC (AUC = {roc_auc:.2f})')
     ax1.plot([0, 1], [0, 1], color='gray', lw=1, linestyle='--')
-    ax1.scatter(fpr[best_youden_idx], tpr[best_youden_idx], color='red', label=f'Youden: {best_youden_threshold:.2f}')
-    ax1.scatter(fpr[best_roc_idx], tpr[best_roc_idx], color='blue', label=f'TPR ≥ 0.9: {best_roc_threshold:.2f}')
+    ax1.scatter(fpr[best_youden_idx], tpr[best_youden_idx], color='red', label=f'Youden-GW: {best_youden_threshold:.2f} {grenzwert_einheit}')
+    ax1.scatter(fpr[best_roc_idx], tpr[best_roc_idx], color='blue', label=f'GW (TPR ≥ 0.9): {best_roc_threshold:.2f}  {grenzwert_einheit}')
     # Besten F1 Punkt in ROC-Kurve markieren
     plt.plot(fpr[roc_idx], tpr[roc_idx], 'o', 
             color='violet', markersize=8, 
-            label=f'Best F1 threshold on ROC')
+            label=f'F1-GW auf ROC')
     ax1.set_xlabel('False Positive Rate & Recall')
     ax1.set_ylabel('True Positive Rate', color=color_roc)
     ax1.tick_params(axis='y', labelcolor=color_roc)
@@ -758,7 +783,7 @@ for s in signale:
     # Besten F1 Punkt in der P/R-Kurve markieren
     ax2.plot(recall[best_f1_idx], precision[best_f1_idx], 'o', 
             color='red', markersize=8, 
-            label=f'Best F1={best_f1:.2f} @ thr={best_f1_threshold:.2f}')
+            label=f'Bester F1-Wert={best_f1:.2f} @ GW={best_f1_threshold:.2f} {grenzwert_einheit}')
     ax2.set_ylabel('Precision', color=color_pr)
     ax2.tick_params(axis='y', labelcolor=color_pr)
 
@@ -771,7 +796,7 @@ for s in signale:
     plt.tight_layout()
     plt.show()
 
-print("\n🎯 Optimale Grenzwerte (Youden-Index):")
+print("\nOptimale Grenzwerte (Youden-Index):")
 for s, val in youden_thresholds.items():
     print(f"{s:10s}: {val:.3f} m/s²")
 
@@ -802,5 +827,5 @@ vergleich = pd.DataFrame({
 })
 
 vergleich['Abweichung_%'] = 100 * (vergleich['Grenzwert_eigeneMessung'] - vergleich['Grenzwert_Literatur']) / vergleich['Grenzwert_Literatur']
-print("\n📋 Vergleich mit Literatur:")
+print("\nVergleich mit Literatur:")
 print(vergleich.round(3))
