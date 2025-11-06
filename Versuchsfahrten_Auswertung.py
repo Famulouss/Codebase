@@ -12,8 +12,8 @@ from tkinter import ttk
 import os
 import json
 
-person_id = 'VP1'
-fahrt_id = 'Szenario 3'
+person_id = 'VP2'
+fahrt_id = 'Szenario 4'
 target_tpr = 0.9
 grenzwerte_gesamt = {}
 delta_time = 0.5
@@ -287,7 +287,7 @@ def plot_roc_pr_for_dicts(signal_dict, centers_dict, signal_name, sig_n, methode
         centers = centers_dict[interval]
 
         # Labels erzeugen
-        y_true = np.array([1 if timestamp_is_uncomfortable(t) else 0 for t in centers])
+        y_true = np.array([1 if interval_is_uncomfortable(t, interval) else 0 for t in centers])
         y_scores = np.array(values)
 
         # ROC
