@@ -12,7 +12,7 @@ from tkinter import ttk
 import os
 import json
 
-person_id = 'VP2'
+person_id = 'VP4'
 fahrt_id = 'Szenario 4'
 target_tpr = 0.9
 grenzwerte_gesamt = {}
@@ -22,7 +22,7 @@ delta_time = 0.5
 # UNKOMFORTABLE-ZEITEN EINTRAGEN (manuell anpassbar)
 # =====================================================
 # Liste mit Start- und Endzeiten (Sekunden)
-unangenehme_zeiten = [18, 20, 22, 58, 69]
+unangenehme_zeiten = [53, 56, 110]
 unangenehme_intervalle = []
 for i, time in enumerate(unangenehme_zeiten):
     unangenehme_intervalle.append((time-delta_time, time+delta_time))
@@ -282,6 +282,8 @@ def plot_roc_pr_for_dicts(signal_dict, centers_dict, signal_name, sig_n, methode
     if len(intervals) == 1:
         axes = [axes]  # falls nur ein Intervall vorhanden ist
 
+    grenzwerte_gesamt[f'{sig_n}_filt_abs'][methode] = {}
+
     for ax, interval in zip(axes, intervals):
         values = signal_dict[interval]
         centers = centers_dict[interval]
@@ -320,18 +322,28 @@ def plot_roc_pr_for_dicts(signal_dict, centers_dict, signal_name, sig_n, methode
         roc_idx = np.argmin(np.abs(roc_thresholds - best_f1_threshold))
         
         # Grenzwerte abspeichern
-        grenzwerte_gesamt[f'{sig_n}_filt_abs'][methode] = {}
         grenzwerte_gesamt[f'{sig_n}_filt_abs'][methode][interval] = {}
         grenzwerte_gesamt[f'{sig_n}_filt_abs'][methode][interval]['F1'] = best_f1_threshold
         grenzwerte_gesamt[f'{sig_n}_filt_abs'][methode][interval]['Youden'] = best_youden_threshold
         grenzwerte_gesamt[f'{sig_n}_filt_abs'][methode][interval][f'TPR>={target_tpr}'] = best_roc_threshold
+        grenzwerte_gesamt[f'{sig_n}_filt_abs'][methode][interval]['AUC'] = roc_auc
+        grenzwerte_gesamt[f'{sig_n}_filt_abs'][methode][interval]['AP'] = ap
+
+        if "acc_yaw" in sig_n:
+            grenzwert_einheit = 'rad/s²'
+        elif "yaw" in sig_n:
+            grenzwert_einheit = 'rad/s'
+        elif "jerk" in sig_n:
+            grenzwert_einheit = 'm/s³'
+        elif 'acc' in sig_n:
+            grenzwert_einheit = 'm/s²'
 
         # ROC (linke y-Achse)
         color_roc = 'darkorange'
         ax.plot(fpr, tpr, color=color_roc, lw=2, label=f'ROC (AUC = {roc_auc:.2f})')
         ax.plot([0, 1], [0, 1], color='gray', lw=1, linestyle='--')
-        ax.scatter(fpr[best_youden_idx], tpr[best_youden_idx], color='red', label=f'Youden: {best_youden_threshold:.2f}')
-        ax.scatter(fpr[best_roc_idx], tpr[best_roc_idx], color='blue', label=f'TPR ≥ 0.9: {best_roc_threshold:.2f}')
+        ax.scatter(fpr[best_youden_idx], tpr[best_youden_idx], color='red', label=f'Youden: {best_youden_threshold:.2f} {grenzwert_einheit}')
+        ax.scatter(fpr[best_roc_idx], tpr[best_roc_idx], color='blue', label=f'TPR ≥ 0.9: {best_roc_threshold:.2f} {grenzwert_einheit}')
         # Besten F1 Punkt in ROC-Kurve markieren
         ax.plot(fpr[roc_idx], tpr[roc_idx], 'o', 
                 color='violet', markersize=8, 
@@ -350,7 +362,7 @@ def plot_roc_pr_for_dicts(signal_dict, centers_dict, signal_name, sig_n, methode
         # Besten F1 Punkt in der P/R-Kurve markieren
         ax2.plot(recall[best_f1_idx], precision[best_f1_idx], 'o', 
                 color='red', markersize=8, 
-                label=f'Best F1={best_f1:.2f} @ thr={best_f1_threshold:.2f}')
+                label=f'Best F1={best_f1:.2f} @ thr={best_f1_threshold:.2f} {grenzwert_einheit}')
         # Titel und Legenden
         ax.set_title(f"{interval}s-Intervall")
 
@@ -748,6 +760,8 @@ for s in signale:
     grenzwerte_gesamt[s]['M1']['F1'] = best_f1_threshold
     grenzwerte_gesamt[s]['M1']['Youden'] = best_youden_threshold
     grenzwerte_gesamt[s]['M1'][f'TPR>={target_tpr}'] = best_roc_threshold
+    grenzwerte_gesamt[s]['M1']['AUC'] = roc_auc
+    grenzwerte_gesamt[s]['M1']['AP'] = ap
 
     if "acc_yaw" in s:
         grenzwert_einheit = 'rad/s²'

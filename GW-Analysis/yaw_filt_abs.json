@@ -1,0 +1,163 @@
+{
+    "signal": "yaw_filt_abs",
+    "thresholds_analysis": {
+        "M1": {
+            "F1": {
+                "Durchschnitt": 0.8114869379883897,
+                "Standardabweichung": 0.14823980644552545,
+                "Anzahl der Werte": 4
+            },
+            "Youden": {
+                "Durchschnitt": 0.7748914410831904,
+                "Standardabweichung": 0.15974258384705622,
+                "Anzahl der Werte": 4
+            },
+            "AUC": {
+                "Durchschnitt": 0.9285879302975504,
+                "Standardabweichung": 0.018036008349826528,
+                "Anzahl der Werte": 4
+            },
+            "AP": {
+                "Durchschnitt": 0.21854800246743333,
+                "Standardabweichung": 0.06291671495280772,
+                "Anzahl der Werte": 4
+            }
+        },
+        "M2": {
+            "1.0": {
+                "F1": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "Youden": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "AUC": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "AP": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                }
+            },
+            "3.0": {
+                "F1": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "Youden": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "AUC": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "AP": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                }
+            },
+            "5.0": {
+                "F1": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "Youden": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "AUC": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "AP": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                }
+            }
+        },
+        "M3": {
+            "1.0": {
+                "F1": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "Youden": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "AUC": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "AP": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                }
+            },
+            "3.0": {
+                "F1": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "Youden": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "AUC": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "AP": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                }
+            },
+            "5.0": {
+                "F1": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "Youden": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "AUC": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "AP": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                }
+            }
+        }
+    }
+}

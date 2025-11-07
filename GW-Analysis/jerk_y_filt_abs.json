@@ -1,0 +1,163 @@
+{
+    "signal": "jerk_y_filt_abs",
+    "thresholds_analysis": {
+        "M1": {
+            "F1": {
+                "Durchschnitt": 4.151008857917604,
+                "Standardabweichung": 1.983938447754166,
+                "Anzahl der Werte": 3
+            },
+            "Youden": {
+                "Durchschnitt": 2.414369115983092,
+                "Standardabweichung": 1.503677097571168,
+                "Anzahl der Werte": 3
+            },
+            "AUC": {
+                "Durchschnitt": 0.7423511845789403,
+                "Standardabweichung": 0.06816183007404412,
+                "Anzahl der Werte": 3
+            },
+            "AP": {
+                "Durchschnitt": 0.24457753046966677,
+                "Standardabweichung": 0.15895214143339617,
+                "Anzahl der Werte": 3
+            }
+        },
+        "M2": {
+            "1.0": {
+                "F1": {
+                    "Durchschnitt": 3.435701144814079,
+                    "Standardabweichung": 1.7792020786812885,
+                    "Anzahl der Werte": 3
+                },
+                "Youden": {
+                    "Durchschnitt": 1.6767118671879915,
+                    "Standardabweichung": 0.9742073827502773,
+                    "Anzahl der Werte": 3
+                },
+                "AUC": {
+                    "Durchschnitt": 0.8334016043693463,
+                    "Standardabweichung": 0.07749891998890933,
+                    "Anzahl der Werte": 3
+                },
+                "AP": {
+                    "Durchschnitt": 0.42725890592193344,
+                    "Standardabweichung": 0.1492028837323312,
+                    "Anzahl der Werte": 3
+                }
+            },
+            "3.0": {
+                "F1": {
+                    "Durchschnitt": 5.760597587182836,
+                    "Standardabweichung": 1.1293570419926897,
+                    "Anzahl der Werte": 3
+                },
+                "Youden": {
+                    "Durchschnitt": 4.789161377564899,
+                    "Standardabweichung": 1.8338761102983707,
+                    "Anzahl der Werte": 3
+                },
+                "AUC": {
+                    "Durchschnitt": 0.9171146257245036,
+                    "Standardabweichung": 0.05446297886855463,
+                    "Anzahl der Werte": 3
+                },
+                "AP": {
+                    "Durchschnitt": 0.5851497177477569,
+                    "Standardabweichung": 0.22209479905075152,
+                    "Anzahl der Werte": 3
+                }
+            },
+            "5.0": {
+                "F1": {
+                    "Durchschnitt": 6.519392503609249,
+                    "Standardabweichung": 1.290644894396416,
+                    "Anzahl der Werte": 3
+                },
+                "Youden": {
+                    "Durchschnitt": 6.519392503609249,
+                    "Standardabweichung": 1.290644894396416,
+                    "Anzahl der Werte": 3
+                },
+                "AUC": {
+                    "Durchschnitt": 0.9217032967032966,
+                    "Standardabweichung": 0.04288941679503884,
+                    "Anzahl der Werte": 3
+                },
+                "AP": {
+                    "Durchschnitt": 0.6889525435578068,
+                    "Standardabweichung": 0.27539974307349613,
+                    "Anzahl der Werte": 3
+                }
+            }
+        },
+        "M3": {
+            "1.0": {
+                "F1": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "Youden": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "AUC": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "AP": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                }
+            },
+            "3.0": {
+                "F1": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "Youden": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "AUC": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "AP": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                }
+            },
+            "5.0": {
+                "F1": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "Youden": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "AUC": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                },
+                "AP": {
+                    "Durchschnitt": NaN,
+                    "Standardabweichung": NaN,
+                    "Anzahl der Werte": 0
+                }
+            }
+        }
+    }
+}
