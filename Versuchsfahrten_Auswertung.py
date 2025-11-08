@@ -12,8 +12,10 @@ from tkinter import ttk
 import os
 import json
 
-person_id = 'VP4'
-fahrt_id = 'Szenario 4'
+person_id = 'VP2'
+fahrt_id = 'Szenario 2'
+plot_directory = f'{person_id}_{fahrt_id}_Analyseplots'
+os.makedirs(plot_directory, exist_ok=True)
 target_tpr = 0.9
 grenzwerte_gesamt = {}
 delta_time = 0.5
@@ -22,7 +24,7 @@ delta_time = 0.5
 # UNKOMFORTABLE-ZEITEN EINTRAGEN (manuell anpassbar)
 # =====================================================
 # Liste mit Start- und Endzeiten (Sekunden)
-unangenehme_zeiten = [53, 56, 110]
+unangenehme_zeiten = [49, 66, 85, 105]
 unangenehme_intervalle = []
 for i, time in enumerate(unangenehme_zeiten):
     unangenehme_intervalle.append((time-delta_time, time+delta_time))
@@ -374,6 +376,7 @@ def plot_roc_pr_for_dicts(signal_dict, centers_dict, signal_name, sig_n, methode
     fig.suptitle(f"ROC & Precision-Recall – {signal_name}", fontsize=14)
     plt.tight_layout()
     plt.show()
+    fig.savefig(os.path.join(plot_directory, f"ROC_PR_{methode}_{sig_n}.png"))
 
 def save_thresholds(all_thresholds, person_id, fahrt_id, save_dir="grenzwerte"):
     """
@@ -393,7 +396,7 @@ def save_thresholds(all_thresholds, person_id, fahrt_id, save_dir="grenzwerte"):
 
     print(f"Grenzwerte gespeichert in: {filename}")
 
-def plot_two_normalized_histograms(data1, data2, grenzwert, bins=40, label1="Komfortabel", label2="Unkomfortabel",
+def plot_two_normalized_histograms(data1, data2, bins=40, label1="Komfortabel", label2="Unkomfortabel",
                                    title="Normalisiertes Histogramm", xlabel="Wert", color1='tab:blue', color2='tab:orange'):
     """
     Plottet zwei Histogramme in normalisierter Form (Summe der Balkenhöhen = 1).
@@ -421,21 +424,11 @@ def plot_two_normalized_histograms(data1, data2, grenzwert, bins=40, label1="Kom
     counts1 = counts1 / np.sum(counts1) if np.sum(counts1) != 0 else counts1
     counts2 = counts2 / np.sum(counts2) if np.sum(counts2) != 0 else counts2
 
-    if "acc_yaw" in title:
-        grenzwert_einheit = 'rad/s²'
-    elif "yaw" in title:
-        grenzwert_einheit = 'rad/s'
-    elif "jerk" in title:
-        grenzwert_einheit = 'm/s³'
-    elif 'acc' in title:
-        grenzwert_einheit = 'm/s²'
-
     # --- Plot ---
-    plt.figure(figsize=(6, 3))
+    fig = plt.figure(figsize=(6, 3))
 
     plt.hist(data1, bins=bins, alpha=0.6, label=label1, color=color1, weights=np.ones(len(data1))/len(data1))
     plt.hist(data2, bins=bins, alpha=0.6, label=label2, color=color2, weights=np.ones(len(data2))/len(data2))
-    plt.axvline(grenzwert, color='red', linestyle='--', label=f' 90%-Grenzwert = {grenzwert:.2f} {grenzwert_einheit}')
 
     plt.xlabel(xlabel)
     plt.ylabel("Relative Häufigkeit (Σ=1)")
@@ -443,6 +436,7 @@ def plot_two_normalized_histograms(data1, data2, grenzwert, bins=40, label1="Kom
     plt.legend()
     plt.tight_layout()
     plt.show()
+    fig.savefig(os.path.join(plot_directory, f"{title}.png"))
 
 # =====================================================
 # 2️⃣  DATEN EINLESEN
@@ -565,33 +559,27 @@ for key, val in grenzwerte.items():
 bins = 30  # Anzahl der Bins anpassbar
 
 plot_two_normalized_histograms(df.loc[df['discomfort'] == 0, 'acc_x_filt_abs'], 
-                               df.loc[df['discomfort'] == 1, 'acc_x_filt_abs'], 
-                               grenzwerte['acc_x_filt_abs'], 
+                               df.loc[df['discomfort'] == 1, 'acc_x_filt_abs'],
                                title=f"Histogramm - acc_x_filt", 
                                xlabel='Beschleunigungswerte [m/s²]')
 plot_two_normalized_histograms(df.loc[df['discomfort'] == 0, 'acc_y_filt_abs'], 
-                               df.loc[df['discomfort'] == 1, 'acc_y_filt_abs'], 
-                               grenzwerte['acc_y_filt_abs'], 
+                               df.loc[df['discomfort'] == 1, 'acc_y_filt_abs'],
                                title=f"Histogramm - acc_y_filt", 
                                xlabel='Beschleunigungswerte [m/s²]')
 plot_two_normalized_histograms(df.loc[df['discomfort'] == 0, 'acc_yaw_filt_abs'], 
-                               df.loc[df['discomfort'] == 1, 'acc_yaw_filt_abs'], 
-                               grenzwerte['acc_yaw_filt_abs'], 
+                               df.loc[df['discomfort'] == 1, 'acc_yaw_filt_abs'],
                                title=f"Histogramm - acc_yaw_filt", 
                                xlabel='Rotationsbeschleunigung [rad/s²]')
 plot_two_normalized_histograms(df.loc[df['discomfort'] == 0, 'yaw_filt_abs'], 
-                               df.loc[df['discomfort'] == 1, 'yaw_filt_abs'], 
-                               grenzwerte['yaw_filt_abs'], 
+                               df.loc[df['discomfort'] == 1, 'yaw_filt_abs'],
                                title=f"Histogramm - yaw_filt", 
                                xlabel='Rotationsgeschwindigkeit [rad/s]')
 plot_two_normalized_histograms(df.loc[df['discomfort'] == 0, 'jerk_x_filt_abs'], 
-                               df.loc[df['discomfort'] == 1, 'jerk_x_filt_abs'], 
-                               grenzwerte['jerk_x_filt_abs'], 
+                               df.loc[df['discomfort'] == 1, 'jerk_x_filt_abs'],
                                title=f"Histogramm - jerk_x_filt", 
                                xlabel='Jerkwerte [m/s³]')
 plot_two_normalized_histograms(df.loc[df['discomfort'] == 0, 'jerk_y_filt_abs'], 
                                df.loc[df['discomfort'] == 1, 'jerk_y_filt_abs'], 
-                               grenzwerte['jerk_y_filt_abs'], 
                                title=f"Histogramm - jerk_y_filt", 
                                xlabel='Beschleunigungswerte [m/s³]')
 
@@ -652,12 +640,6 @@ for sig in signale:
             else:
                 comfortable_vals.append(val)
 
-        # === GRENZWERT berechnen (z. B. 90. Perzentil der unkomfortablen Intervalle) ===
-        if len(uncomfortable_vals) > 0:
-            grenzwert = np.percentile(uncomfortable_vals, 90)
-        else:
-            grenzwert = np.nan
-
         # === PLOT ===
         if sig in ['acc_x', 'acc_y']:
             xlabel = "Summationswert [m/s²]"
@@ -665,7 +647,7 @@ for sig in signale:
             xlabel = "Summationswert [rad/s²]"
         elif sig in ['jerk_x', 'jerk_y']:
             xlabel = "Summationswert [m/s³]"
-        plot_two_normalized_histograms(comfortable_vals, uncomfortable_vals, grenzwert, bins=bins, title=f"Histogramm Summationswerte ({sig}, {interval:.0f}s-Intervall)", xlabel=xlabel)
+        plot_two_normalized_histograms(comfortable_vals, uncomfortable_vals, bins=bins, title=f"Histogramm Summationswerte ({sig}, {interval:.0f}s-Intervall)", xlabel=xlabel)
 
 # =====================================================
 # RMS-Berechnung
@@ -697,22 +679,35 @@ rms_all = {'acc_x': acc_x_rms_dict, 'acc_y': acc_y_rms_dict, 'acc_yaw': acc_yaw_
 # =====================================================
 # 6️⃣  RMS-DARSTELLUNG
 # =====================================================
-for sig in ['acc_x', 'acc_y', 'acc_yaw']:
-    plt.figure(figsize=(10, 6))
-    plt.plot(df['time_rel'], df[f'{sig}_filt'], alpha=0.5, label='Signal')
-    for win in intervals:
-        plt.plot(x_interval_centers[win], rms_all[sig][win],
-                 label=f'RMS {win:.0f}s')
-    plt.title(f"RMS über Zeitfenster – {sig}")
-    plt.xlabel("Zeit [s]")
-    if sig == 'acc_yaw':
-        plt.ylabel(f"{sig} RMS [rad/s²]")
-    else:
-        plt.ylabel(f"{sig} RMS [m/s²]")
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
+# === PARAMETER ===
+signale = ['acc_x', 'acc_y', 'acc_yaw']
+intervals = [1.0, 3.0, 5.0]
+
+# === HAUPTSCHLEIFE ===
+for sig in signale:
+    for interval in intervals:
+        centers = sum_x_interval_centers[interval]
+        sums = rms_all[sig][interval]
+
+        # komfortabel / unkomfortabel trennen
+        comfortable_vals = []
+        uncomfortable_vals = []
+
+        for c, val in zip(centers, sums):
+            if interval_is_uncomfortable(c, interval):
+                uncomfortable_vals.append(val)
+            else:
+                comfortable_vals.append(val)
+
+        # === PLOT ===
+        if sig in ['acc_x', 'acc_y']:
+            xlabel = "RMS-Wert [m/s²]"
+        elif sig in ['acc_yaw']:
+            xlabel = "RMS-Wert [rad/s²]"
+        elif sig in ['jerk_x', 'jerk_y']:
+            xlabel = "RMS-Wert [m/s³]"
+        plot_two_normalized_histograms(comfortable_vals, uncomfortable_vals, bins=bins, title=f"Histogramm RMS-Werte ({sig}, {interval:.0f}s-Intervall)", xlabel=xlabel)
+
 
 # =====================================================
 # 6️⃣  ROC-P/R-ANALYSE
@@ -809,6 +804,7 @@ for s in signale:
 
     plt.tight_layout()
     plt.show()
+    fig.savefig(os.path.join(plot_directory, f"ROC_PR_M1_{s}.png"))
 
 print("\nOptimale Grenzwerte (Youden-Index):")
 for s, val in youden_thresholds.items():
